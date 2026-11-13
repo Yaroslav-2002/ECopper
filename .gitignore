@@ -1,0 +1,9 @@
+# Virtual environment (recreate with: python -m venv .venv && .venv\Scripts\pip install -r requirements.txt)
+.venv/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# PyCharm per-user state
+.idea/workspace.xml

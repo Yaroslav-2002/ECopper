@@ -1,0 +1,50 @@
+{% extends "screening/base.html" %}
+{% block title %}CuRemediate – {{ a.query_id }}{% endblock %}
+{% block content %}
+<div class="box card {{ a.level }}">
+  <div class="muted">{{ a.filename }} · {{ a.created_at|date:"Y-m-d H:i" }}</div>
+  <h2>{{ a.query_id }}</h2>
+  <p>Length: {{ a.length }} aa</p>
+  <div class="score">{{ a.best_score }} / 8</div>
+  <p><strong>{{ a.verdict }}</strong></p>
+  <a class="btn" href="{% url 'result_csv' a.pk %}">Download CSV</a>
+</div>
+
+{% if top %}
+<div class="box">
+  <h3>Score breakdown – top hit {{ top.gene_name }} ({{ top.bacmet_id }})</h3>
+  <table>
+    <tr><th>Criterion</th><th>Score</th><th>Explanation</th></tr>
+    {% for label, score, max, text in breakdown %}
+    <tr><td>{{ label }}</td><td>{{ score }} / {{ max }}</td><td>{{ text }}</td></tr>
+    {% endfor %}
+    <tr><th>Total</th><th>{{ top.total }} / 8</th><th></th></tr>
+  </table>
+</div>
+
+<div class="box">
+  <h3>Ranked BacMet copper hits</h3>
+  <table>
+    <tr>
+      <th>Rank</th><th>Gene</th><th>BacMet ID</th><th>Organism</th><th>Identity %</th><th>E-value</th>
+      <th>C1</th><th>C2</th><th>C3</th><th>C4</th><th>Total/8</th><th>Europe PMC</th>
+    </tr>
+    {% for h in hits %}
+    <tr>
+      <td>{{ h.rank }}</td>
+      <td>{{ h.gene_name }}</td>
+      <td><a href="{{ h.bacmet_url }}" target="_blank" rel="noopener">{{ h.bacmet_id }}</a></td>
+      <td>{{ h.organism }}</td>
+      <td>{{ h.identity|floatformat:1 }}</td>
+      <td>{{ h.evalue|stringformat:".2e" }}</td>
+      <td>{{ h.c1 }}</td><td>{{ h.c2 }}</td><td>{{ h.c3 }}</td><td>{{ h.c4 }}</td>
+      <td><strong>{{ h.total }}</strong></td>
+      <td>{% if h.pmc_hits is None %}n/a{% else %}<a href="{{ h.pmc_url }}" target="_blank" rel="noopener">{{ h.pmc_hits }}</a>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% else %}
+<div class="box"><p>No BacMet copper-resistance homolog passed the e-value cutoff (1e-5).</p></div>
+{% endif %}
+{% endblock %}

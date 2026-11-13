@@ -1,0 +1,23 @@
+{% extends "screening/base.html" %}
+{% block title %}CuRemediate – History{% endblock %}
+{% block content %}
+<div class="box">
+  <h2>Past analyses</h2>
+  {% if analyses %}
+  <table>
+    <tr><th>Date</th><th>File</th><th>Query ID</th><th>Best score</th><th>Verdict</th></tr>
+    {% for a in analyses %}
+    <tr>
+      <td>{{ a.created_at|date:"Y-m-d H:i" }}</td>
+      <td><a href="{% url 'result' a.pk %}">{{ a.filename }}</a></td>
+      <td>{{ a.query_id }}</td>
+      <td>{{ a.best_score }} / 8</td>
+      <td>{{ a.verdict }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p>No analyses yet. <a href="{% url 'upload' %}">Run one</a>.</p>
+  {% endif %}
+</div>
+{% endblock %}

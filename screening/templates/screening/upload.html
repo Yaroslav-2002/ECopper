@@ -1,0 +1,14 @@
+{% extends "screening/base.html" %}
+{% block content %}
+<div class="box">
+  <h2>Screen a protein for copper bioremediation potential</h2>
+  <p class="muted">Upload one protein sequence in FASTA format (30–5000 aa). It is compared with experimentally confirmed copper-resistance genes from BacMet and scored out of 8.</p>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="errors">{{ form.non_field_errors }}</div>{% endif %}
+    <p>{{ form.file.label_tag }}<br>{{ form.file }}</p>
+    {% if form.file.errors %}<div class="errors">{{ form.file.errors }}</div>{% endif %}
+    <button type="submit">Analyse</button>
+  </form>
+</div>
+{% endblock %}

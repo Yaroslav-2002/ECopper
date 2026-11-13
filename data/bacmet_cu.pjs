@@ -1,0 +1,22 @@
+{
+  "version": "1.2",
+  "dbname": "bacmet_cu",
+  "dbtype": "Protein",
+  "db-version": 5,
+  "description": "bacmet_cu.fasta",
+  "number-of-letters": 49553,
+  "number-of-sequences": 133,
+  "last-updated": "2026-11-13T22:25:00",
+  "number-of-volumes": 1,
+  "bytes-total": 1063046,
+  "bytes-to-cache": 50851,
+  "files": [
+    "bacmet_cu.pdb",
+    "bacmet_cu.phr",
+    "bacmet_cu.pin",
+    "bacmet_cu.pot",
+    "bacmet_cu.psq",
+    "bacmet_cu.ptf",
+    "bacmet_cu.pto"
+  ]
+}
