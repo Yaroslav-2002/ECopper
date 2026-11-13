@@ -1,0 +1,19 @@
+.git
+.gitignore
+.gitattributes
+.venv
+.idea
+.claude
+**/__pycache__
+**/*.py[cod]
+tools/
+staticfiles/
+db.sqlite3
+# Generated BLAST databases; the container builds its own on start.
+data/bacmet_cu.fasta
+data/bacmet_cu.p*
+data/bacmet_cu_nt.n*
+Dockerfile
+docker-compose.yml
+.dockerignore
+README.md

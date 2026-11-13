@@ -1,3 +1,4 @@
 Django>=5.0,<6.0
 biopython>=1.81
 requests>=2.31
+whitenoise>=6.6
