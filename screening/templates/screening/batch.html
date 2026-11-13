@@ -1,0 +1,61 @@
+{% extends "screening/base.html" %}
+{% block title %}CuRemediate – {{ b.filename }}{% endblock %}
+{% block content %}
+<div class="box">
+  <div class="muted">Batch · {{ b.created_at|date:"Y-m-d H:i" }}</div>
+  <h2>{{ b.filename }} <span class="tag">{{ b.get_seq_type_display }}</span></h2>
+  <table class="summary">
+    <tr><th>Sequences in file</th><td>{{ b.sequence_count }}</td></tr>
+    <tr><th>Screened</th><td>{{ b.screened_count }}</td></tr>
+    <tr><th>Skipped (failed validation)</th><td>{{ b.skipped|length }}</td></tr>
+    <tr><th>No Cu-resistance homolog</th><td>{{ no_hit_count }}</td></tr>
+    <tr><th>With Cu-resistance homologs</th><td><strong>{{ rows|length }}</strong>
+      ({{ counts.strong }} strong, {{ counts.possible }} possible, {{ counts.weak }} weak)</td></tr>
+  </table>
+  <p><a class="btn" href="{% url 'batch_csv' b.pk %}">Download CSV</a></p>
+</div>
+
+<div class="box">
+  <h3>Sequences with BacMet copper hits</h3>
+  {% if rows %}
+  <table>
+    <tr>
+      <th>Query ID</th><th>Length</th><th>Score</th><th>Verdict</th><th>Top gene</th><th>BacMet ID</th>
+      <th>Identity %</th>{% if b.seq_type == "nucleotide" %}<th>Gene coverage %</th><th>Query region (nt)</th>{% endif %}<th>E-value</th>
+    </tr>
+    {% for a, h in rows %}
+    <tr class="row-{{ a.level }}">
+      <td><a href="{% url 'result' a.pk %}">{{ a.query_id }}</a></td>
+      <td>{{ a.length }}</td>
+      <td><strong>{{ a.best_score }} / 8</strong></td>
+      <td>{{ a.verdict }}</td>
+      <td>{{ h.gene_name }}</td>
+      <td><a href="{{ h.bacmet_url }}" target="_blank" rel="noopener">{{ h.bacmet_id }}</a></td>
+      <td>{{ h.identity|floatformat:1 }}</td>
+      {% if b.seq_type == "nucleotide" %}
+      <td>{% if h.coverage is None %}n/a{% else %}{{ h.coverage|floatformat:0 }}{% endif %}</td>
+      <td>{{ h.query_start }}–{{ h.query_end }}</td>
+      {% endif %}
+      <td>{{ h.evalue|stringformat:".2e" }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p>No sequence had a BacMet copper-resistance homolog passing the e-value cutoff (1e-5).</p>
+  {% endif %}
+</div>
+
+{% if b.skipped %}
+<div class="box">
+  <details>
+    <summary>{{ b.skipped|length }} skipped sequence{{ b.skipped|length|pluralize }}</summary>
+    <table>
+      <tr><th>Query ID</th><th>Reason</th></tr>
+      {% for qid, reason in b.skipped %}
+      <tr><td>{{ qid }}</td><td>{{ reason }}</td></tr>
+      {% endfor %}
+    </table>
+  </details>
+</div>
+{% endif %}
+{% endblock %}

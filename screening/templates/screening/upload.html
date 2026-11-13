@@ -1,13 +1,26 @@
 {% extends "screening/base.html" %}
 {% block content %}
 <div class="box">
-  <h2>Screen a protein for copper bioremediation potential</h2>
-  <p class="muted">Upload one protein sequence in FASTA format (30–5000 aa). It is compared with experimentally confirmed copper-resistance genes from BacMet and scored out of 8.</p>
+  <h2>Screen sequences for copper bioremediation potential</h2>
+  <p class="muted">Upload a FASTA file: one sequence for a detailed report, or many (for example a whole proteome or a set of genes) for a batch screen. Each sequence is compared with experimentally confirmed copper-resistance genes from BacMet and scored out of 8.</p>
   <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
     {% if form.non_field_errors %}<div class="errors">{{ form.non_field_errors }}</div>{% endif %}
+    <fieldset class="seqtype">
+      <legend>{{ form.seq_type.label }}</legend>
+      {% for radio in form.seq_type %}
+      <label>{{ radio.tag }} {{ radio.choice_label }}</label>
+      {% endfor %}
+      <p class="muted">
+        <strong>Protein</strong>: amino-acid sequences (30–5000 aa), searched with blastp against BacMet copper-resistance proteins.<br>
+        <strong>Nucleotide</strong>: DNA/RNA sequences such as genes or contigs (at least 30 nt), searched on both strands with blastn against the same genes' DNA sequences.
+      </p>
+    </fieldset>
+    {% if form.seq_type.errors %}<div class="errors">{{ form.seq_type.errors }}</div>{% endif %}
     <p>{{ form.file.label_tag }}<br>{{ form.file }}</p>
     {% if form.file.errors %}<div class="errors">{{ form.file.errors }}</div>{% endif %}
+    <p>{{ form.sequence_text.label_tag }} <span class="muted">(optional, instead of a file)</span><br>{{ form.sequence_text }}</p>
+    {% if form.sequence_text.errors %}<div class="errors">{{ form.sequence_text.errors }}</div>{% endif %}
     <button type="submit">Analyse</button>
   </form>
 </div>

@@ -1,23 +1,45 @@
 {% extends "screening/base.html" %}
 {% block title %}CuRemediate – History{% endblock %}
 {% block content %}
+{% if batches %}
 <div class="box">
-  <h2>Past analyses</h2>
+  <h2>Batch screens</h2>
+  <table>
+    <tr><th>Date</th><th>File</th><th>Type</th><th>Sequences</th><th>Screened</th><th>With Cu hits</th></tr>
+    {% for b in batches %}
+    <tr>
+      <td>{{ b.created_at|date:"Y-m-d H:i" }}</td>
+      <td><a href="{% url 'batch' b.pk %}">{{ b.filename }}</a></td>
+      <td>{{ b.get_seq_type_display }}</td>
+      <td>{{ b.sequence_count }}</td>
+      <td>{{ b.screened_count }}</td>
+      <td>{{ b.analyses.count }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+<div class="box">
+  <h2>Single-sequence analyses</h2>
   {% if analyses %}
   <table>
-    <tr><th>Date</th><th>File</th><th>Query ID</th><th>Best score</th><th>Verdict</th></tr>
+    <tr><th>Date</th><th>File</th><th>Type</th><th>Query ID</th><th>Best score</th><th>Verdict</th></tr>
     {% for a in analyses %}
     <tr>
       <td>{{ a.created_at|date:"Y-m-d H:i" }}</td>
       <td><a href="{% url 'result' a.pk %}">{{ a.filename }}</a></td>
+      <td>{{ a.get_seq_type_display }}</td>
       <td>{{ a.query_id }}</td>
       <td>{{ a.best_score }} / 8</td>
       <td>{{ a.verdict }}</td>
     </tr>
     {% endfor %}
   </table>
-  {% else %}
+  {% elif not batches %}
   <p>No analyses yet. <a href="{% url 'upload' %}">Run one</a>.</p>
+  {% else %}
+  <p class="muted">None yet.</p>
   {% endif %}
 </div>
 {% endblock %}

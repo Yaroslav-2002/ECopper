@@ -1,10 +1,11 @@
 {% extends "screening/base.html" %}
 {% block title %}CuRemediate – {{ a.query_id }}{% endblock %}
 {% block content %}
+{% if a.batch_id %}<p><a href="{% url 'batch' a.batch_id %}">← Back to batch {{ a.filename }}</a></p>{% endif %}
 <div class="box card {{ a.level }}">
   <div class="muted">{{ a.filename }} · {{ a.created_at|date:"Y-m-d H:i" }}</div>
-  <h2>{{ a.query_id }}</h2>
-  <p>Length: {{ a.length }} aa</p>
+  <h2>{{ a.query_id }} <span class="tag">{{ a.get_seq_type_display }}</span></h2>
+  <p>Length: {{ a.length }} {{ a.unit }}</p>
   <div class="score">{{ a.best_score }} / 8</div>
   <p><strong>{{ a.verdict }}</strong></p>
   <a class="btn" href="{% url 'result_csv' a.pk %}">Download CSV</a>
@@ -26,16 +27,23 @@
   <h3>Ranked BacMet copper hits</h3>
   <table>
     <tr>
-      <th>Rank</th><th>Gene</th><th>BacMet ID</th><th>Organism</th><th>Identity %</th><th>E-value</th>
+      <th>Rank</th><th>Gene</th><th>BacMet ID</th><th>Organism</th><th>Identity %</th>
+      {% if a.seq_type == "nucleotide" %}<th>Gene coverage %</th><th>Query region (nt)</th>{% endif %}
+      <th>E-value</th>
       <th>C1</th><th>C2</th><th>C3</th><th>C4</th><th>Total/8</th><th>Europe PMC</th>
     </tr>
     {% for h in hits %}
     <tr>
       <td>{{ h.rank }}</td>
-      <td>{{ h.gene_name }}</td>
-      <td><a href="{{ h.bacmet_url }}" target="_blank" rel="noopener">{{ h.bacmet_id }}</a></td>
+      <td>{{ h.gene_name }}{% if h.description %}<div class="muted">{{ h.description }}</div>{% endif %}</td>
+      <td><a href="{{ h.bacmet_url }}" target="_blank" rel="noopener">{{ h.bacmet_id }}</a>
+        {% if h.ncbi_gene_url %}<div><a class="muted" href="{{ h.ncbi_gene_url }}" target="_blank" rel="noopener">NCBI Gene</a></div>{% endif %}</td>
       <td>{{ h.organism }}</td>
       <td>{{ h.identity|floatformat:1 }}</td>
+      {% if a.seq_type == "nucleotide" %}
+      <td>{% if h.coverage is None %}n/a{% else %}{{ h.coverage|floatformat:0 }}{% endif %}</td>
+      <td>{{ h.query_start }}–{{ h.query_end }}</td>
+      {% endif %}
       <td>{{ h.evalue|stringformat:".2e" }}</td>
       <td>{{ h.c1 }}</td><td>{{ h.c2 }}</td><td>{{ h.c3 }}</td><td>{{ h.c4 }}</td>
       <td><strong>{{ h.total }}</strong></td>
