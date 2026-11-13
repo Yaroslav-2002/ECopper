@@ -1,27 +1,99 @@
 {% extends "screening/base.html" %}
 {% block content %}
+<section class="intro">
+  <span class="eyebrow">New analysis</span>
+  <h1>Screen sequences for copper bioremediation potential</h1>
+  <p>Each sequence is compared with experimentally confirmed copper-resistance genes from BacMet and ranked as a candidate for lab validation.
+    One sequence gives a detailed report; several (a proteome, a gene set) run as a batch screen.</p>
+  <div class="steps" aria-hidden="true">
+    <span><b>1</b>Choose sequence type</span>
+    <span><b>2</b>Upload or paste FASTA</span>
+    <span><b>3</b>Review ranked hits</span>
+  </div>
+</section>
+
 <div class="box">
-  <h2>Screen sequences for copper bioremediation potential</h2>
-  <p class="muted">Upload a FASTA file: one sequence for a detailed report, or many (for example a whole proteome or a set of genes) for a batch screen. Each sequence is compared with experimentally confirmed copper-resistance genes from BacMet and scored out of 8.</p>
-  <form method="post" enctype="multipart/form-data">
+  <form id="upload-form" method="post" enctype="multipart/form-data" novalidate>
     {% csrf_token %}
-    {% if form.non_field_errors %}<div class="errors">{{ form.non_field_errors }}</div>{% endif %}
-    <fieldset class="seqtype">
-      <legend>{{ form.seq_type.label }}</legend>
-      {% for radio in form.seq_type %}
-      <label>{{ radio.tag }} {{ radio.choice_label }}</label>
-      {% endfor %}
-      <p class="muted">
-        <strong>Protein</strong>: amino-acid sequences (30–5000 aa), searched with blastp against BacMet copper-resistance proteins.<br>
-        <strong>Nucleotide</strong>: DNA/RNA sequences such as genes or contigs (at least 30 nt), searched on both strands with blastn against the same genes' DNA sequences.
-      </p>
+    {% if form.non_field_errors %}<div class="alert-error" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+
+    <fieldset class="form-section form-fieldset">
+      <legend class="form-label">{{ form.seq_type.label }}</legend>
+      <div class="segmented">
+        {% for radio in form.seq_type %}
+        <div>
+          <input type="radio" name="{{ radio.data.name }}" id="{{ radio.id_for_label }}" value="{{ radio.data.value }}"{% if radio.data.selected %} checked{% endif %}>
+          <label for="{{ radio.id_for_label }}">
+            <span class="opt-title">{{ radio.choice_label }}</span>
+            {% if radio.data.value == "protein" %}
+            <span class="opt-desc d-block">Amino-acid sequences, 30–5000 aa. Searched with blastp against BacMet copper-resistance proteins.</span>
+            {% else %}
+            <span class="opt-desc d-block">DNA/RNA such as genes or contigs, at least 30 nt. Both strands searched with blastn.</span>
+            {% endif %}
+          </label>
+        </div>
+        {% endfor %}
+      </div>
+      {% if form.seq_type.errors %}<div class="field-error">{{ form.seq_type.errors }}</div>{% endif %}
     </fieldset>
-    {% if form.seq_type.errors %}<div class="errors">{{ form.seq_type.errors }}</div>{% endif %}
-    <p>{{ form.file.label_tag }}<br>{{ form.file }}</p>
-    {% if form.file.errors %}<div class="errors">{{ form.file.errors }}</div>{% endif %}
-    <p>{{ form.sequence_text.label_tag }} <span class="muted">(optional, instead of a file)</span><br>{{ form.sequence_text }}</p>
-    {% if form.sequence_text.errors %}<div class="errors">{{ form.sequence_text.errors }}</div>{% endif %}
-    <button type="submit">Analyse</button>
+
+    <div class="form-section">
+      <span class="form-label">Sequences</span>
+      <div class="input-tabs">
+        <div class="dropzone">
+          <input type="file" name="{{ form.file.html_name }}" id="{{ form.file.id_for_label }}" accept=".fasta,.fa,.faa,.fna,.ffn,.fas" aria-label="{{ form.file.label }}">
+          <div class="dz-default">
+            <svg class="dz-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4m0 0-4 4m4-4 4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+            <div class="dz-title">Drop a FASTA file here or click to browse</div>
+            <div class="dz-hint">{{ form.file.label }}</div>
+          </div>
+          <div class="file-chip">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>
+            <span class="name"></span>
+            <button type="button" class="btn btn-secondary btn-sm clear-file">Remove</button>
+          </div>
+        </div>
+        {% if form.file.errors %}<div class="field-error">{{ form.file.errors }}</div>{% endif %}
+
+        <div class="or-divider">or paste</div>
+
+        <div>
+          <label class="sr-only" for="{{ form.sequence_text.id_for_label }}">{{ form.sequence_text.label }}</label>
+          {{ form.sequence_text }}
+          <div class="textarea-foot">
+            <span data-type-hint aria-live="polite"></span>
+            <span data-seq-counter aria-live="polite"></span>
+          </div>
+          {% if form.sequence_text.errors %}<div class="field-error">{{ form.sequence_text.errors }}</div>{% endif %}
+          {% if examples %}
+          <div class="examples">
+            <span class="label">Try an example:</span>
+            {% for key, ex in examples.items %}
+            <button type="button" class="chip" data-example="{{ key }}">{{ ex.label }}</button>
+            {% endfor %}
+          </div>
+          {{ examples|json_script:"examples-data" }}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="submit-row">
+      <button type="submit" class="btn-lg">
+        <span class="spinner" aria-hidden="true"></span>
+        <svg class="icon btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <span class="label">Analyse</span>
+      </button>
+      <p class="muted">Single sequences usually finish in a few seconds; large batches can take longer.</p>
+    </div>
   </form>
+</div>
+
+<div class="loading-overlay" role="status" aria-live="polite">
+  <div class="loading-card">
+    <div class="big-spinner"></div>
+    <strong>Screening your sequences…</strong>
+    <p>Running BLAST against BacMet copper-resistance genes and ranking the hits.</p>
+  </div>
 </div>
 {% endblock %}

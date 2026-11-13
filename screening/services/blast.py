@@ -5,7 +5,7 @@ import subprocess
 from django.conf import settings
 
 BAC_RE = re.compile(r"BAC\d+")
-OUT_FIELDS = "qseqid sseqid pident length evalue bitscore qstart qend slen stitle"
+OUT_FIELDS = "qseqid sseqid pident length evalue bitscore qstart qend qlen sstart send slen stitle"
 EVALUE = "1e-5"
 
 
@@ -76,10 +76,10 @@ def run_blast_many(sequences, seq_type="protein"):
     hits = [{} for _ in sequences]
     for line in out.splitlines():
         cols = line.split("\t")
-        if len(cols) < 9 or not cols[0].startswith("q"):
+        if len(cols) < 12 or not cols[0].startswith("q"):
             continue
-        qseqid, sseqid, pident, length, evalue, bitscore, qstart, qend, slen = cols[:9]
-        title = cols[9] if len(cols) > 9 else ""
+        qseqid, sseqid, pident, length, evalue, bitscore, *coords = cols[:12]
+        title = cols[12] if len(cols) > 12 else ""
         per_query = hits[int(qseqid[1:])]
         if len(per_query) == max_hits:
             continue
@@ -87,14 +87,14 @@ def run_blast_many(sequences, seq_type="protein"):
         bacmet_id = m.group(0) if m else sseqid
         if bacmet_id in per_query:
             continue
+        qstart, qend, qlen, sstart, send, slen = map(int, coords)
         per_query[bacmet_id] = {
             "bacmet_id": bacmet_id,
             "identity": float(pident),
             "align_length": int(length),
             "evalue": float(evalue),
             "bitscore": float(bitscore),
-            "query_start": int(qstart),
-            "query_end": int(qend),
-            "subject_length": int(slen),
+            "query_start": qstart, "query_end": qend, "query_length": qlen,
+            "subject_start": sstart, "subject_end": send, "subject_length": slen,
         }
     return [list(h.values()) for h in hits]

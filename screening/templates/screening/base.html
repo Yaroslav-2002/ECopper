@@ -1,44 +1,27 @@
-<!doctype html>
+{% load static %}<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>{% block title %}CuRemediate{% endblock %}</title>
-<style>
-body{font-family:system-ui,Arial,sans-serif;margin:0;background:#f6f7f9;color:#222}
-header{background:#7a3b12;color:#fff;padding:12px 24px;display:flex;gap:24px;align-items:center}
-header a{color:#fff;text-decoration:none}
-header .brand{font-weight:700;font-size:20px}
-main{max-width:1100px;margin:24px auto;padding:0 16px}
-.box{background:#fff;border:1px solid #ddd;border-radius:8px;padding:20px;margin-bottom:20px}
-.card{border-left:8px solid #888;background:#eee}
-.card.strong{border-color:#2e7d32;background:#e6f4ea}
-.card.possible{border-color:#e69500;background:#fff4dc}
-.card.weak{border-color:#888;background:#eee}
-.score{font-size:36px;font-weight:700}
-.errors{color:#b00020}
-table{border-collapse:collapse;width:100%;font-size:14px}
-th,td{border-bottom:1px solid #e3e3e3;padding:6px 8px;text-align:left}
-th{background:#fafafa}
-.muted{color:#666;font-size:13px}
-table.summary{width:auto}
-tr.row-strong td:first-child{border-left:6px solid #2e7d32}
-tr.row-possible td:first-child{border-left:6px solid #e69500}
-tr.row-weak td:first-child{border-left:6px solid #bbb}
-details summary{cursor:pointer;font-weight:600}
-fieldset.seqtype{border:1px solid #ddd;border-radius:6px;margin:0 0 12px;padding:8px 12px}
-fieldset.seqtype label{margin-right:20px;cursor:pointer}
-textarea{width:100%;box-sizing:border-box;font-family:ui-monospace,Consolas,monospace;font-size:13px;padding:8px;border:1px solid #ccc;border-radius:4px;resize:vertical}
-.tag{display:inline-block;font-size:12px;background:#f1e6dc;color:#7a3b12;border-radius:10px;padding:2px 8px;vertical-align:middle}
-button,.btn{background:#7a3b12;color:#fff;border:0;border-radius:4px;padding:8px 16px;cursor:pointer;text-decoration:none;display:inline-block}
-</style>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23b8622a'/%3E%3Ctext x='16' y='21' font-family='Arial' font-weight='700' font-size='13' text-anchor='middle' fill='%23fff'%3ECu%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="{% static 'screening/app.css' %}">
 </head>
 <body>
-<header>
-  <a class="brand" href="{% url 'upload' %}">CuRemediate</a>
-  <a href="{% url 'upload' %}">New analysis</a>
-  <a href="{% url 'history' %}">History</a>
+{% with url_name=request.resolver_match.url_name %}
+<header class="site-header">
+  <div class="inner">
+    <a class="brand" href="{% url 'upload' %}"><span class="brand-mark" aria-hidden="true">Cu</span>CuRemediate<small>copper-resistance screening</small></a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="{% url 'upload' %}" {% if url_name == 'upload' %}class="active" aria-current="page"{% endif %}>New analysis</a>
+      <a href="{% url 'history' %}" {% if url_name == 'history' or url_name == 'result' or url_name == 'batch' %}class="active"{% endif %}{% if url_name == 'history' %} aria-current="page"{% endif %}>History</a>
+    </nav>
+  </div>
 </header>
+{% endwith %}
 <main>{% block content %}{% endblock %}</main>
+<footer class="site-footer">Reference data: BacMet experimentally confirmed resistance genes (copper subset) · Candidates for lab validation, not a diagnosis</footer>
+<script src="{% static 'screening/app.js' %}" defer></script>
 </body>
 </html>

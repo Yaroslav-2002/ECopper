@@ -1,45 +1,92 @@
 {% extends "screening/base.html" %}
+{% load screening_ui %}
 {% block title %}CuRemediate – History{% endblock %}
 {% block content %}
-{% if batches %}
-<div class="box">
-  <h2>Batch screens</h2>
-  <table>
-    <tr><th>Date</th><th>File</th><th>Type</th><th>Sequences</th><th>Screened</th><th>With Cu hits</th></tr>
-    {% for b in batches %}
-    <tr>
-      <td>{{ b.created_at|date:"Y-m-d H:i" }}</td>
-      <td><a href="{% url 'batch' b.pk %}">{{ b.filename }}</a></td>
-      <td>{{ b.get_seq_type_display }}</td>
-      <td>{{ b.sequence_count }}</td>
-      <td>{{ b.screened_count }}</td>
-      <td>{{ b.analyses.count }}</td>
-    </tr>
-    {% endfor %}
-  </table>
+<div class="page-head">
+  <div>
+    <div class="eyebrow">History</div>
+    <h1>Previous screens</h1>
+  </div>
+  <div class="page-actions"><a class="btn" href="{% url 'upload' %}">New analysis</a></div>
 </div>
+
+{% if not batches and not analyses %}
+<section class="box empty-state">
+  <svg class="icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>
+  <h2>No analyses yet</h2>
+  <p>Screen a protein or nucleotide sequence and its report will appear here.</p>
+  <a class="btn" href="{% url 'upload' %}">Run your first analysis</a>
+</section>
+{% else %}
+
+{% if batches %}
+<section class="box">
+  <div class="box-head"><h2>Batch screens</h2><span class="muted">{{ batches|length }} file{{ batches|length|pluralize }}</span></div>
+  <div class="table-wrap">
+    <table data-sortable>
+      <thead>
+        <tr>
+          <th class="sortable" data-type="text">Date</th>
+          <th class="sortable" data-type="text">File</th>
+          <th class="sortable" data-type="text">Type</th>
+          <th class="sortable num" data-type="num">Sequences</th>
+          <th class="sortable num" data-type="num">Screened</th>
+          <th class="sortable num" data-type="num">With Cu hits</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in batches %}
+        <tr data-href="{% url 'batch' b.pk %}">
+          <td class="nowrap" data-value="{{ b.created_at|date:'c' }}">{{ b.created_at|date:"Y-m-d H:i" }}</td>
+          <td class="cell-id"><a href="{% url 'batch' b.pk %}"><strong>{{ b.filename }}</strong></a></td>
+          <td><span class="tag">{{ b.get_seq_type_display }}</span></td>
+          <td class="num">{{ b.sequence_count }}</td>
+          <td class="num">{{ b.screened_count }}</td>
+          <td class="num"><strong>{{ b.analyses.count }}</strong></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
 {% endif %}
 
-<div class="box">
-  <h2>Single-sequence analyses</h2>
+<section class="box">
+  <div class="box-head"><h2>Single-sequence analyses</h2>{% if analyses %}<span class="muted">{{ analyses|length }} result{{ analyses|length|pluralize }}</span>{% endif %}</div>
   {% if analyses %}
-  <table>
-    <tr><th>Date</th><th>File</th><th>Type</th><th>Query ID</th><th>Best score</th><th>Verdict</th></tr>
-    {% for a in analyses %}
-    <tr>
-      <td>{{ a.created_at|date:"Y-m-d H:i" }}</td>
-      <td><a href="{% url 'result' a.pk %}">{{ a.filename }}</a></td>
-      <td>{{ a.get_seq_type_display }}</td>
-      <td>{{ a.query_id }}</td>
-      <td>{{ a.best_score }} / 8</td>
-      <td>{{ a.verdict }}</td>
-    </tr>
-    {% endfor %}
-  </table>
-  {% elif not batches %}
-  <p>No analyses yet. <a href="{% url 'upload' %}">Run one</a>.</p>
+  <div class="table-wrap">
+    <table data-sortable>
+      <thead>
+        <tr>
+          <th class="sortable" data-type="text">Date</th>
+          <th class="sortable" data-type="text">Query</th>
+          <th class="sortable" data-type="text">Type</th>
+          <th class="sortable num" data-type="num">Score</th>
+          <th class="sortable" data-type="text">Category</th>
+          <th class="sortable" data-type="num">Uncertainty</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in analyses %}
+        {% with cat=a.category|category_class %}
+        <tr class="cat-{{ cat }}" data-href="{% url 'result' a.pk %}">
+          <td class="nowrap" data-value="{{ a.created_at|date:'c' }}">{{ a.created_at|date:"Y-m-d H:i" }}</td>
+          <td class="cell-id"><a href="{% url 'result' a.pk %}"><strong>{{ a.query_id|breakable }}</strong></a><div class="cell-sub">{{ a.filename }} · {{ a.length }} {{ a.unit }}</div></td>
+          <td><span class="tag">{{ a.get_seq_type_display }}</span></td>
+          <td class="num nowrap" data-value="{{ a.score_pct|default_if_none:'-1' }}">{% if a.score is not None %}<span class="pill cat cat-{{ cat }}">{{ a.score }}/{{ a.max_score }}</span> <span class="muted">{{ a.score_pct|stringformat:".0f" }}%</span>{% else %}<span class="muted">–</span>{% endif %}</td>
+          <td><span class="badge cat cat-{{ cat }}">{{ a.category|default:"Old scoring – re-run" }}</span></td>
+          <td data-value="{% if a.uncertainty == 'Low' %}0{% elif a.uncertainty == 'Moderate' %}1{% elif a.uncertainty == 'High' %}2{% else %}3{% endif %}">
+            {% if a.uncertainty %}<span class="unc {{ a.uncertainty|uncertainty_class }}"><span class="unc-bars" aria-hidden="true"><i></i><i></i><i></i></span>{{ a.uncertainty }}</span>{% endif %}
+          </td>
+        </tr>
+        {% endwith %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
   {% else %}
-  <p class="muted">None yet.</p>
+  <p class="muted">No single-sequence analyses yet.</p>
   {% endif %}
-</div>
+</section>
+{% endif %}
 {% endblock %}

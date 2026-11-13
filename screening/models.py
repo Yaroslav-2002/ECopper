@@ -1,4 +1,4 @@
-from urllib.parse import quote, urlencode
+from urllib.parse import quote
 
 from django.conf import settings
 from django.db import models
@@ -71,8 +71,15 @@ class Analysis(models.Model):
     query_id = models.CharField(max_length=255)
     sequence = models.TextField()
     length = models.PositiveIntegerField()
-    best_score = models.PositiveSmallIntegerField(default=0)
-    verdict = models.CharField(max_length=64)
+    # Ranking result (see services/scoring.py); category "" marks a result from the old scoring scheme.
+    category = models.CharField(max_length=32, blank=True)
+    score = models.PositiveSmallIntegerField(null=True, blank=True)
+    max_score = models.PositiveSmallIntegerField(null=True, blank=True)  # maximum available for this sequence
+    score_pct = models.FloatField(null=True, blank=True)
+    uncertainty = models.CharField(max_length=16, blank=True)
+    flags = models.JSONField(default=list, blank=True)
+    breakdown = models.JSONField(default=list, blank=True)  # [{key, label, points (None = skipped), max, note}]
+    conclusion = models.TextField(blank=True)
 
     class Meta:
         ordering = ["-created_at"]
@@ -83,11 +90,11 @@ class Analysis(models.Model):
 
     @property
     def level(self):
-        if self.best_score >= 6:
-            return "strong"
-        if self.best_score >= 3:
-            return "possible"
-        return "weak"
+        return {"High potential": "strong", "Moderate": "possible"}.get(self.category, "weak")
+
+    @property
+    def points(self):
+        return {row["key"]: row["points"] for row in self.breakdown}
 
 
 class Hit(models.Model):
@@ -100,16 +107,12 @@ class Hit(models.Model):
     align_length = models.PositiveIntegerField()
     evalue = models.FloatField()
     bitscore = models.FloatField()
-    c1 = models.PositiveSmallIntegerField()
-    c2 = models.PositiveSmallIntegerField()
-    c3 = models.PositiveSmallIntegerField()
-    c4 = models.PositiveSmallIntegerField()
-    total = models.PositiveSmallIntegerField()
-    pmc_hits = models.IntegerField(null=True, blank=True)
     query_start = models.PositiveIntegerField(null=True, blank=True)
     query_end = models.PositiveIntegerField(null=True, blank=True)
-    coverage = models.FloatField(null=True, blank=True)  # % of the reference gene covered by the alignment
+    ref_coverage = models.FloatField(null=True, blank=True)  # % of the reference gene covered by the alignment
+    passes_gate = models.BooleanField(default=False)
     description = models.CharField(max_length=255, blank=True)
+    family = models.CharField(max_length=32, blank=True)
     ncbi_gene_url = models.CharField(max_length=255, blank=True)
 
     class Meta:
@@ -122,7 +125,3 @@ class Hit(models.Model):
     @property
     def bacmet_url(self):
         return settings.BACMET_GENE_URL.format(gene=quote(self.query_gene))
-
-    @property
-    def pmc_url(self):
-        return "https://europepmc.org/search?" + urlencode({"query": f'"{self.query_gene}" AND bioremediation'})
