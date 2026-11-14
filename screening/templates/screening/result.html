@@ -2,7 +2,7 @@
 {% load screening_ui %}
 {% block title %}CuRemediate – {{ a.query_id }}{% endblock %}
 {% block content %}
-{% with cat=a.category|category_class %}
+{% with cat=a.tier|tier_class %}
 <nav class="breadcrumb" aria-label="Breadcrumb">
   {% if a.batch_id %}<a href="{% url 'batch' a.batch_id %}">← Batch: {{ a.filename }}</a>
   {% else %}<a href="{% url 'history' %}">← History</a>{% endif %}
@@ -18,22 +18,16 @@
       {% if top %}<span>Best hit: <strong>{{ top.gene_name }}</strong>&nbsp;<span class="muted">({{ top.bacmet_id }})</span></span>{% endif %}
     </div>
     <div class="hero-badges">
-      {% if a.category %}
-      <span class="badge badge-lg cat cat-{{ cat }}">{{ a.category }}</span>
-      {% if a.uncertainty %}
-      <span class="unc {{ a.uncertainty|uncertainty_class }}" title="Uncertainty of this ranking">
-        <span class="unc-bars" aria-hidden="true"><i></i><i></i><i></i></span>{{ a.uncertainty }} uncertainty
-      </span>
-      {% endif %}
-      {% for f in a.flags %}<span class="flag">⚑ {{ f }}</span>{% endfor %}
+      {% if a.tier %}
+      <span class="badge badge-lg cat cat-{{ cat }}">{% if top %}{{ a.tier }} tier{% else %}{{ a.tier }}{% endif %}</span>
       {% else %}
       <span class="badge badge-lg cat cat-legacy">Old scoring scheme</span>
       {% endif %}
     </div>
-    {% if a.category %}
+    {% if a.tier %}
     <p class="conclusion">{{ a.conclusion }}</p>
     {% else %}
-    <p class="conclusion">This result was scored with the previous scheme. Run the sequence again to get the current ranking.</p>
+    <p class="conclusion">This result was scored with a previous scheme. Run the sequence again to get the current ranking.</p>
     {% endif %}
     <div class="hero-actions">
       <a class="btn" href="{% url 'result_csv' a.pk %}">
@@ -44,16 +38,15 @@
     </div>
   </div>
 
-  {% if a.score is not None %}
-  <div class="gauge" role="img" aria-label="Score {{ a.score }} of {{ a.max_score }} ({{ a.score_pct|stringformat:'.0f' }}%)">
+  {% if a.total_score is not None %}
+  <div class="gauge" role="img" aria-label="Score {{ a.total_score|floatformat }} of {{ max_score }}">
     <svg viewBox="0 0 120 120" aria-hidden="true">
       <circle class="track" cx="60" cy="60" r="52" fill="none" stroke-width="11"/>
-      <circle class="fill" cx="60" cy="60" r="52" fill="none" stroke-width="11" pathLength="100"
-              stroke-dasharray="{{ a.score_pct|stringformat:'.1f' }} 100"/>
+      <circle class="fill" cx="60" cy="60" r="52" fill="none" stroke-width="11" pathLength="{{ max_score }}"
+              stroke-dasharray="{{ a.total_score|stringformat:'.2f' }} {{ max_score }}"/>
     </svg>
     <div class="gauge-label">
-      <div class="gauge-score">{{ a.score }}<span class="gauge-max">/{{ a.max_score }}</span></div>
-      <div class="gauge-pct">{{ a.score_pct|stringformat:".0f" }}%</div>
+      <div class="gauge-score">{{ a.total_score|floatformat }}<span class="gauge-max">/{{ max_score }}</span></div>
     </div>
   </div>
   {% else %}
@@ -65,55 +58,55 @@
 </section>
 
 {% if top %}
-{% if gate %}
+{% if top.total_score is not None %}
 <section class="box">
   <div class="box-head">
-    <h2>Step 1 · Significance gate</h2>
-    <span class="muted">Best hit {{ top.gene_name }} ({{ top.bacmet_id }})</span>
-  </div>
-  <div class="checks">
-    {% for label, value, required, ok in gate %}
-    <div class="check{% if not ok %} fail{% endif %}">
-      <div class="check-head"><span class="check-icon" aria-hidden="true">{% if ok %}✓{% else %}✕{% endif %}</span>{{ label }}<span class="sr-only">: {% if ok %}pass{% else %}fail{% endif %}</span></div>
-      <div class="check-value">{{ value }}</div>
-      <div class="check-req">required {{ required }}</div>
-    </div>
-    {% endfor %}
-    <div class="check{% if top.identity < 40 %} fail{% endif %}">
-      <div class="check-head"><span class="check-icon" aria-hidden="true">{% if top.identity >= 40 %}✓{% else %}✕{% endif %}</span>Identity<span class="sr-only">: {% if top.identity >= 40 %}pass{% else %}fail{% endif %}</span></div>
-      <div class="check-value">{{ top.identity|floatformat:1 }}%</div>
-      <div class="check-req">≥ 40% for function transfer</div>
-    </div>
-  </div>
-  {% if top.evalue == 0 %}<p class="gate-verdict">BLAST reports E-values too small to print as 0; they are shown as “&lt; 1e-180”.</p>{% endif %}
-</section>
-{% endif %}
-
-{% if a.breakdown %}
-<section class="box">
-  <div class="box-head">
-    <h2>Step 2 · Score breakdown</h2>
-    <span class="muted">Skipped criteria lower the maximum instead of counting as zero</span>
+    <h2>Score breakdown</h2>
+    <span class="muted">Top-ranked hit {{ top.gene_name }} ({{ top.bacmet_id }})</span>
   </div>
   <div class="criteria">
-    {% for row in a.breakdown %}
-    <div class="criterion{% if row.points is None %} skipped{% endif %}">
+    <div class="criterion">
       <div>
-        <div class="criterion-name"><span class="code">{{ row.key }}</span>{{ row.label }}</div>
+        <div class="criterion-name"><span class="code">1</span>BLAST similarity</div>
         <div class="criterion-score">
-          <span class="segments{% if row.points is None %} skipped{% endif %}" aria-hidden="true">{% for on in row.points|segments:row.max %}<i{% if on %} class="on"{% endif %}></i>{% endfor %}</span>
-          <span class="criterion-pts">{% if row.points is None %}skipped (max {{ row.max }}){% else %}{{ row.points }} / {{ row.max }}{% endif %}</span>
+          <span class="segments" aria-hidden="true">{% for on in top.score_blast|segments:max_points.blast %}<i{% if on %} class="on"{% endif %}></i>{% endfor %}</span>
+          <span class="criterion-pts">{{ top.score_blast|floatformat }} / {{ max_points.blast }}</span>
         </div>
       </div>
-      <div class="criterion-text">{{ row.note }}</div>
+      <div class="criterion-text">{{ top.identity|floatformat:1 }}% identity × {{ top.ref_coverage|floatformat:0 }}% reference coverage / 100 = <strong>{{ top.similarity|floatformat:1 }}</strong> (≥ 80 = 5, 60–79 = 4, 40–59 = 3, 20–39 = 2, below 20 = 0; capped at 1 if the E-value is above 1e-5). E-value {{ top.evalue|evalue:1 }}.</div>
     </div>
-    {% endfor %}
+    <div class="criterion">
+      <div>
+        <div class="criterion-name"><span class="code">2</span>BacMet evidence</div>
+        <div class="criterion-score">
+          <span class="segments" aria-hidden="true">{% for on in top.score_bacmet|segments:max_points.bacmet %}<i{% if on %} class="on"{% endif %}></i>{% endfor %}</span>
+          <span class="criterion-pts">{{ top.score_bacmet|floatformat }} / {{ max_points.bacmet }}</span>
+        </div>
+      </div>
+      <div class="criterion-text">Experimentally confirmed BacMet genes score 3, predicted ones 1. The reference set is BacMet EXP (experimentally confirmed).</div>
+    </div>
+    <div class="criterion">
+      <div>
+        <div class="criterion-name"><span class="code">3</span>Other metals</div>
+        <div class="criterion-score">
+          <span class="segments" aria-hidden="true">{% for on in top.score_metals|segments:max_points.metals %}<i{% if on %} class="on"{% endif %}></i>{% endfor %}</span>
+          <span class="criterion-pts">{{ top.score_metals|floatformat }} / {{ max_points.metals }}</span>
+        </div>
+      </div>
+      <div class="criterion-text">BacMet compounds: {{ top.compounds|default:"none listed" }}. At least one metal besides copper scores 2, copper only 1.</div>
+    </div>
   </div>
   <div class="total-row">
-    <strong>Total {{ a.score }} / {{ a.max_score }}</strong>
-    <span class="muted">{{ a.score_pct|stringformat:".0f" }}% of the maximum available →</span>
-    <span class="badge cat cat-{{ cat }}">{{ a.category }}</span>
-    <span class="muted total-scale">≥ 75% High potential · ≥ 50% Moderate · below 50% Low</span>
+    <strong>Total {{ top.total_score|floatformat }} / {{ max_score }}</strong>
+    <span class="badge cat cat-{{ cat }}">{{ top.tier }} tier</span>
+    <span class="muted total-scale">High ≥ 8 · Medium 5–7.9 · Low below 5</span>
+  </div>
+  {% if top.notes %}<p class="score-notes">Notes: {{ top.notes }}</p>{% endif %}
+  <div class="refs">
+    <strong>Articles ({{ top.n_references|default_if_none:0 }})</strong>
+    {% if top.article_links %}
+    <ul>{% for url in top.article_links %}<li><a href="{{ url }}" target="_blank" rel="noopener">{{ url }}</a></li>{% endfor %}</ul>
+    {% else %}<span class="muted">No article links in the database for this gene. References are for information only and are not scored.</span>{% endif %}
   </div>
 </section>
 {% endif %}
@@ -121,7 +114,7 @@
 <section class="box">
   <div class="box-head">
     <h2>BacMet copper hits</h2>
-    <span class="muted">{{ hits|length }} hit{{ hits|length|pluralize }}, ranked by bitscore · click a column to sort</span>
+    <span class="muted">{{ hits|length }} hit{{ hits|length|pluralize }}, ranked by total score, then similarity, then E-value · click a column to sort</span>
   </div>
   <div class="table-wrap">
     <table data-sortable>
@@ -134,8 +127,11 @@
           <th class="sortable num" data-type="num" title="Reference coverage">Ref. cov.</th>
           <th class="sortable num" data-type="num">E-value</th>
           <th class="sortable num" data-type="num">Bitscore</th>
-          <th class="sortable" data-type="text">Family</th>
-          <th class="sortable" data-type="text">Gate</th>
+          <th class="sortable num" data-type="num" title="Identity × reference coverage / 100">Similarity</th>
+          <th class="sortable num" data-type="num" title="BLAST + BacMet + metals">Score</th>
+          <th class="sortable" data-type="text">Tier</th>
+          <th class="sortable num" data-type="num" title="Articles in the database (not scored)">Refs</th>
+          <th>Notes</th>
         </tr>
       </thead>
       <tbody>
@@ -157,8 +153,11 @@
           <td class="num" data-value="{{ h.ref_coverage|default_if_none:'' }}">{% if h.ref_coverage is None %}n/a{% else %}{{ h.ref_coverage|floatformat:0 }}%{% endif %}</td>
           <td class="num nowrap" data-value="{{ h.evalue }}">{{ h.evalue|evalue:2 }}</td>
           <td class="num">{{ h.bitscore|floatformat:1 }}</td>
-          <td>{{ h.family|default:"unknown" }}</td>
-          <td>{% if h.passes_gate %}<span class="gate-pass">✓ pass</span>{% else %}<span class="gate-fail">✕ fail</span>{% endif %}</td>
+          <td class="num" data-value="{{ h.similarity|default_if_none:'-1' }}">{{ h.similarity|floatformat:1 }}</td>
+          <td class="num nowrap" data-value="{{ h.total_score|default_if_none:'-1' }}">{% if h.total_score is not None %}<span class="pill cat cat-{{ h.tier|tier_class }}" title="BLAST {{ h.score_blast|floatformat }} + BacMet {{ h.score_bacmet|floatformat }} + metals {{ h.score_metals|floatformat }}">{{ h.total_score|floatformat }}/{{ max_score }}</span>{% else %}<span class="muted">–</span>{% endif %}</td>
+          <td><span class="badge cat cat-{{ h.tier|tier_class }}">{{ h.tier|default:"Old scoring" }}</span></td>
+          <td class="num" data-value="{{ h.n_references|default_if_none:'0' }}">{% for url in h.article_links %}<a href="{{ url }}" target="_blank" rel="noopener" title="{{ url }}">[{{ forloop.counter }}]</a> {% empty %}{{ h.n_references|default_if_none:"–" }}{% endfor %}</td>
+          <td class="cell-sub">{{ h.notes }}</td>
         </tr>
         {% endfor %}
       </tbody>

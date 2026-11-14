@@ -62,22 +62,18 @@
           <th class="sortable" data-type="text">Query</th>
           <th class="sortable" data-type="text">Type</th>
           <th class="sortable num" data-type="num">Score</th>
-          <th class="sortable" data-type="text">Category</th>
-          <th class="sortable" data-type="num">Uncertainty</th>
+          <th class="sortable" data-type="text">Tier</th>
         </tr>
       </thead>
       <tbody>
         {% for a in analyses %}
-        {% with cat=a.category|category_class %}
+        {% with cat=a.tier|tier_class %}
         <tr class="cat-{{ cat }}" data-href="{% url 'result' a.pk %}">
           <td class="nowrap" data-value="{{ a.created_at|date:'c' }}">{{ a.created_at|date:"Y-m-d H:i" }}</td>
           <td class="cell-id"><a href="{% url 'result' a.pk %}"><strong>{{ a.query_id|breakable }}</strong></a><div class="cell-sub">{{ a.filename }} · {{ a.length }} {{ a.unit }}</div></td>
           <td><span class="tag">{{ a.get_seq_type_display }}</span></td>
-          <td class="num nowrap" data-value="{{ a.score_pct|default_if_none:'-1' }}">{% if a.score is not None %}<span class="pill cat cat-{{ cat }}">{{ a.score }}/{{ a.max_score }}</span> <span class="muted">{{ a.score_pct|stringformat:".0f" }}%</span>{% else %}<span class="muted">–</span>{% endif %}</td>
-          <td><span class="badge cat cat-{{ cat }}">{{ a.category|default:"Old scoring – re-run" }}</span></td>
-          <td data-value="{% if a.uncertainty == 'Low' %}0{% elif a.uncertainty == 'Moderate' %}1{% elif a.uncertainty == 'High' %}2{% else %}3{% endif %}">
-            {% if a.uncertainty %}<span class="unc {{ a.uncertainty|uncertainty_class }}"><span class="unc-bars" aria-hidden="true"><i></i><i></i><i></i></span>{{ a.uncertainty }}</span>{% endif %}
-          </td>
+          <td class="num nowrap" data-value="{{ a.total_score|default_if_none:'-1' }}">{% if a.total_score is not None %}<span class="pill cat cat-{{ cat }}">{{ a.total_score|floatformat }}/{{ max_score }}</span>{% else %}<span class="muted">–</span>{% endif %}</td>
+          <td><span class="badge cat cat-{{ cat }}">{{ a.tier|default:"Old scoring – re-run" }}</span></td>
         </tr>
         {% endwith %}
         {% endfor %}
