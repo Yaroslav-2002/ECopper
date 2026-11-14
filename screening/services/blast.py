@@ -41,17 +41,26 @@ def _run(cmd, input_text=None):
 
 
 def db_exists():
-    return any(settings.DATA_DIR.glob(settings.CU_DB_NAME + ".p*"))
+    return all((settings.DATA_DIR / (name + ".pin")).exists()
+               for name in (settings.CU_DB_NAME, settings.CU_PRED_DB_NAME))
 
 
-def make_db():
+def make_db(fasta_name=None, db_name=None):
     return _run([
-        settings.MAKEBLASTDB_BIN, "-in", settings.CU_FASTA_NAME,
-        "-dbtype", "prot", "-out", settings.CU_DB_NAME,
+        settings.MAKEBLASTDB_BIN, "-in", fasta_name or settings.CU_FASTA_NAME,
+        "-dbtype", "prot", "-out", db_name or settings.CU_DB_NAME,
     ])
 
 
 def run_blast_many(sequences, seq_type="protein"):
+    if not db_exists():
+        raise BlastError(f"Experimental and predicted Cu databases are required. Run: {BUILD_CMD}")
+    experimental = _search_database(sequences, seq_type, settings.CU_DB_NAME)
+    predicted = _search_database(sequences, seq_type, settings.CU_PRED_DB_NAME)
+    return [exp + pred for exp, pred in zip(experimental, predicted)]
+
+
+def _search_database(sequences, seq_type, db_name):
     """BLAST all sequences in one run (blastp or blastx). Returns one hit list per input sequence, in order."""
     s = SEARCHES[seq_type]
     if not db_exists():
@@ -59,7 +68,7 @@ def run_blast_many(sequences, seq_type="protein"):
     max_hits = s["max_hits"]
     query = "".join(f">q{i}\n{seq}\n" for i, seq in enumerate(sequences))
     out = _run([
-        s["bin"](), "-query", "-", "-db", settings.CU_DB_NAME, *s["options"],
+        s["bin"](), "-query", "-", "-db", db_name, *s["options"],
         "-outfmt", f"6 {OUT_FIELDS}", "-evalue", EVALUE,
         "-max_target_seqs", str(max_hits), "-max_hsps", "1",
         "-num_threads", str(max(1, min(8, os.cpu_count() or 1))),
@@ -74,7 +83,7 @@ def run_blast_many(sequences, seq_type="protein"):
         per_query = hits[int(qseqid[1:])]
         if len(per_query) == max_hits:
             continue
-        m = BAC_RE.search(sseqid) or BAC_RE.search(title)
+        m = None if sseqid.startswith("PRE") else (BAC_RE.search(sseqid) or BAC_RE.search(title))
         bacmet_id = m.group(0) if m else sseqid
         if bacmet_id in per_query:
             continue

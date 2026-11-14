@@ -2,6 +2,7 @@
 .gitignore
 .gitattributes
 .venv
+.test-deps
 .idea
 .claude
 **/__pycache__
@@ -12,6 +13,8 @@ db.sqlite3
 # Generated BLAST databases; the container builds its own on start.
 data/bacmet_cu.fasta
 data/bacmet_cu.p*
+data/bacmet_cu_predicted.fasta
+data/bacmet_cu_predicted.p*
 Dockerfile
 docker-compose.yml
 .dockerignore

@@ -115,7 +115,7 @@ def score(*, dataset, compounds, identity, coverage, evalue, references):
         notes.append("compounds missing")
     else:
         metals = metals_in(compounds)
-        s_metals = SCORING["other_metal"] if metals - {"Cu"} else SCORING["copper_only"]
+        s_metals = (SCORING["other_metal"] if metals - {"Cu"} else SCORING["copper_only"]) if "Cu" in metals else 0
         if "Cu" not in metals:
             notes.append("copper not listed in compounds")
 

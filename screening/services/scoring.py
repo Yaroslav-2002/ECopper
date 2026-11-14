@@ -30,6 +30,7 @@ class Ref:
     description: str = ""
     ncbi_gene_url: str = ""
     bacmet_url: str = ""
+    annotation_note: str = ""
 
 
 def format_evalue(evalue, digits=1):
@@ -51,7 +52,7 @@ def _references(ids):
     return {
         bacmet_id: Ref(
             gene.gene_name, gene.organism, gene.compounds, gene.dataset, gene.references,
-            gene.protein_name or gene.ncbi_description, gene.ncbi_gene_url, gene.bacmet_url,
+            gene.protein_name or gene.ncbi_description, gene.ncbi_gene_url, gene.source_link, gene.annotation_note,
         )
         for bacmet_id, gene in BacMetGene.objects.in_bulk(ids, field_name="bacmet_id").items()
     }
@@ -63,7 +64,10 @@ def score_hit(h, refs):
     ref_cov = min(100.0, 100 * (abs(h["subject_end"] - h["subject_start"]) + 1) / h["subject_length"])
     s = ranking.score(dataset=ref.dataset, compounds=ref.compounds, references=ref.references,
                       identity=h["identity"], coverage=ref_cov, evalue=h["evalue"])
+    if ref.annotation_note:
+        s["notes"].append(ref.annotation_note)
     return {
+        "dataset": ref.dataset,
         "bacmet_id": h["bacmet_id"], "gene_name": ref.gene_name, "organism": ref.organism,
         "compounds": ref.compounds, "description": ref.description[:255], "ncbi_gene_url": ref.ncbi_gene_url,
         "bacmet_url": ref.bacmet_url,
@@ -75,13 +79,19 @@ def score_hit(h, refs):
 
 def evaluate(query_id, raw_hits, refs):
     """Score and rank one query's hits; the query takes the score and tier of its top-ranked hit."""
-    hits = sorted((score_hit(h, refs) for h in raw_hits),
-                  key=lambda h: ranking.ranking_key(h["total_score"], h["similarity"], h["evalue"]))
+    # Experimental matches take priority; search both databases independently so predicted hits cannot hide them.
+    eligible = [h for h in raw_hits if h["bacmet_id"] in refs
+                and refs[h["bacmet_id"]].dataset in ("experimental", "predicted")
+                and h["evalue"] <= ranking.SCORING["evalue_cutoff"]]
+    hits = sorted((score_hit(h, refs) for h in eligible),
+                  key=lambda h: (h["dataset"] != "experimental",
+                                 *ranking.ranking_key(h["total_score"], h["similarity"], h["evalue"])))
     for rank, h in enumerate(hits, 1):
         h["rank"] = rank
     if not hits:
-        return {"hits": [], "tier": NO_HIT, "total_score": None, "conclusion": (
-            f"{query_id} has no BLAST hit to a BacMet copper-resistance gene (E-value cutoff 1e-5).")}
+        return {"hits": [], "tier": NO_HIT, "total_score": 0, "conclusion": (
+            f"{query_id} has no qualifying match in the experimental or predicted BacMet copper references "
+            "(E-value cutoff 1e-5). No candidate result; score 0.")}
     top = hits[0]
     return {"hits": hits, "tier": top["tier"], "total_score": top["total_score"], "conclusion": (
         f"{query_id}: top candidate {top['gene_name']} ({top['bacmet_id']}), {top['identity']:.0f}% identity over "

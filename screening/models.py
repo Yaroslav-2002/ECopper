@@ -11,6 +11,7 @@ class BacMetGene(models.Model):
     organism = models.CharField(max_length=255, blank=True)
     compounds = models.TextField(blank=True)
     dataset = models.CharField(max_length=16, default="experimental")  # BacMet "experimental" or "predicted"
+    annotation_note = models.TextField(blank=True)
     sequence = models.TextField()
     # From data/copper_genes_annotation.tsv: protein description, literature references and the NCBI Gene link.
     references = models.TextField(blank=True)  # ";"-separated PubMed IDs, DOIs or titles
@@ -21,6 +22,12 @@ class BacMetGene(models.Model):
 
     def __str__(self):
         return f"{self.bacmet_id} {self.gene_name}"
+
+    @property
+    def source_link(self):
+        if self.dataset == "predicted":
+            return f"https://www.ncbi.nlm.nih.gov/protein/{quote(self.accession, safe='')}" if self.accession else ""
+        return self.bacmet_url
 
 
 SEQ_TYPES = [("protein", "Protein (blastp)"), ("nucleotide", "Nucleotide (blastx)")]
@@ -66,6 +73,7 @@ class Analysis(models.Model):
 class Hit(models.Model):
     analysis = models.ForeignKey(Analysis, on_delete=models.CASCADE, related_name="hits")
     rank = models.PositiveSmallIntegerField()
+    dataset = models.CharField(max_length=16, blank=True)
     bacmet_id = models.CharField(max_length=32)
     gene_name = models.CharField(max_length=128)
     organism = models.CharField(max_length=255, blank=True)
@@ -96,5 +104,11 @@ class Hit(models.Model):
 
     @property
     def bacmet_link(self):
-        """The reference gene in the BacMet Experimentally Confirmed database (by gene name if no entry link)."""
+        """BacMet EXP entry or the source protein record for a predicted reference."""
+        if self.dataset == "predicted":
+            if self.bacmet_url:
+                return self.bacmet_url
+            # Older saved predicted hits did not store a link; resolve their reference accession.
+            reference = BacMetGene.objects.filter(bacmet_id=self.bacmet_id, dataset="predicted").first()
+            return reference.source_link if reference else ""
         return self.bacmet_url or settings.BACMET_EXP_URL.format(query=quote(self.gene_name.split("/")[0].strip()))

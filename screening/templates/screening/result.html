@@ -85,7 +85,9 @@
       </div>
       <div class="criterion-text">{% if top.score_bacmet == max_points.bacmet %}{{ top.gene_name }} is experimentally confirmed:
         <a href="{{ top.bacmet_link }}" target="_blank" rel="noopener">{% if top.bacmet_url %}its BacMet EXP entry {{ top.bacmet_id }}{% else %}BacMet EXP entries for {{ top.gene_name }}{% endif %}</a>.
-        {% endif %}Experimentally confirmed BacMet genes score 3, predicted ones 1.</div>
+        {% elif top.dataset == "predicted" %}{{ top.gene_name }} is a predicted BacMet homolog, not experimentally confirmed.
+        {% if top.bacmet_link %}<a href="{{ top.bacmet_link }}" target="_blank" rel="noopener">Source protein record (NCBI)</a>.{% endif %}
+        {% endif %}Experimentally confirmed BacMet genes score 3, predicted ones 1, neither 0.</div>
     </div>
     <div class="criterion">
       <div>
@@ -95,7 +97,8 @@
           <span class="criterion-pts">{{ top.score_metals|floatformat }} / {{ max_points.metals }}</span>
         </div>
       </div>
-      <div class="criterion-text">BacMet compounds: {{ top.compounds|default:"none listed" }}. At least one metal besides copper scores 2, copper only 1.</div>
+      <div class="criterion-text">BacMet compounds: {{ top.compounds|default:"none listed" }}. Copper plus another metal scores 2, copper only 1; missing or non-copper annotations score 0.
+        {% if top.dataset == "predicted" %}Predicted compound annotations are inferred from the gene-family mapping; only metals shared by all matching mapping entries are used.{% endif %}</div>
     </div>
   </div>
   <div class="total-row">
@@ -116,7 +119,7 @@
 <section class="box">
   <div class="box-head">
     <h2>BacMet copper hits</h2>
-    <span class="muted">{{ hits|length }} hit{{ hits|length|pluralize }}, ranked by total score, then similarity, then E-value · click a column to sort</span>
+    <span class="muted">{{ hits|length }} hit{{ hits|length|pluralize }} · experimental evidence first, then total score, similarity and E-value · click a column to sort</span>
   </div>
   <div class="table-wrap">
     <table data-sortable>
@@ -144,7 +147,8 @@
             <strong>{{ h.gene_name }}</strong>
             {% if h.description %}<div class="cell-sub">{{ h.description }}</div>{% endif %}
             <div class="cell-sub">
-              <a href="{{ h.bacmet_link }}" target="_blank" rel="noopener" title="BacMet experimentally confirmed database">{{ h.bacmet_id }}</a>
+              {% if h.bacmet_link %}<a href="{{ h.bacmet_link }}" target="_blank" rel="noopener" title="{% if h.dataset == 'predicted' %}Predicted reference source protein (NCBI){% else %}BacMet experimentally confirmed database{% endif %}">{{ h.bacmet_id }}</a>{% else %}{{ h.bacmet_id }}{% endif %}
+              {% if h.dataset %} · {{ h.dataset }}{% endif %}
               {% if h.ncbi_gene_url %} · <a href="{{ h.ncbi_gene_url }}" target="_blank" rel="noopener">NCBI Gene</a>{% endif %}
             </div>
           </td>
@@ -170,7 +174,7 @@
 <section class="box empty-state">
   <svg class="icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5M8.5 11h5"/></svg>
   <h2>No copper-resistance homolog found</h2>
-  <p>BLAST found no BacMet copper-resistance gene for this sequence (E-value cutoff 1e-5).</p>
+  <p>No qualifying match was found in either the experimental or predicted BacMet copper references (E-value cutoff 1e-5). Score: 0; no candidate result.</p>
   <a class="btn btn-secondary" href="{% url 'upload' %}">Screen another sequence</a>
 </section>
 {% endif %}

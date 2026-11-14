@@ -105,7 +105,7 @@ HIT_HEADER = [
     "Identity %", "Reference coverage %", "E-value", "Bitscore", "Similarity (identity x coverage / 100)",
     f"score_blast (/{MAX_POINTS['blast']})", f"score_bacmet (/{MAX_POINTS['bacmet']})",
     f"score_metals (/{MAX_POINTS['metals']})", f"total_score (/{MAX_SCORE})", "Tier",
-    "n_references", "article_links", "Notes", "BacMet EXP link",
+    "n_references", "article_links", "Notes", "Reference source link", "BacMet dataset",
 ]
 
 
@@ -115,7 +115,7 @@ def _hit_row(h):
         f"{h.identity:.1f}", _num(h.ref_coverage, ".0f"), f"{h.evalue:.2e}", f"{h.bitscore:.1f}",
         _num(h.similarity, ".1f"), _num(h.score_blast), _num(h.score_bacmet), _num(h.score_metals),
         _num(h.total_score), h.tier or OLD_SCHEME, _num(h.n_references), " ; ".join(h.article_links), h.notes,
-        h.bacmet_link,
+        h.bacmet_link, h.dataset,
     ]
 
 

@@ -66,8 +66,11 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 DATA_DIR = Path(os.environ.get("CUREMEDIATE_DATA_DIR", BASE_DIR / "data"))
 BACMET_FASTA = DATA_DIR / "BacMet2_EXP_database.fasta"
 BACMET_MAPPING = DATA_DIR / "BacMet2_EXP.753.mapping.txt"
+BACMET_PREDICTED_FASTA = DATA_DIR / "BacMet2_predicted_database.fasta.gz"
 CU_FASTA_NAME = "bacmet_cu.fasta"
 CU_DB_NAME = "bacmet_cu"
+CU_PRED_FASTA_NAME = "bacmet_cu_predicted.fasta"
+CU_PRED_DB_NAME = "bacmet_cu_predicted"
 # UniProt / NCBI Gene annotation of the copper genes (protein descriptions, NCBI Gene links).
 CU_ANNOTATION = DATA_DIR / "copper_genes_annotation.tsv"
 
