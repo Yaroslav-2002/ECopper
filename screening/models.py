@@ -11,40 +11,16 @@ class BacMetGene(models.Model):
     organism = models.CharField(max_length=255, blank=True)
     compounds = models.TextField(blank=True)
     sequence = models.TextField()
-
-    def __str__(self):
-        return f"{self.bacmet_id} {self.gene_name}"
-
-
-class NucleotideGene(models.Model):
-    """A copper-resistance gene's DNA sequence with its annotation (blastn reference)."""
-    bacmet_id = models.CharField(max_length=32, unique=True)
-    gene_name = models.CharField(max_length=128)
-    uniprot_accession = models.CharField(max_length=64, blank=True)
-    organism = models.CharField(max_length=255, blank=True)
-    location = models.CharField(max_length=255, blank=True)
-    compounds = models.TextField(blank=True)
-    protein_name = models.CharField(max_length=255, blank=True)
-    ncbi_description = models.CharField(max_length=255, blank=True)
+    # From data/copper_genes_annotation.tsv: descriptions used to classify the mechanism (criterion C).
+    protein_name = models.CharField(max_length=255, blank=True)  # UniProt
+    ncbi_description = models.CharField(max_length=255, blank=True)  # NCBI Gene
     ncbi_gene_url = models.CharField(max_length=255, blank=True)
-    genomic_accession = models.CharField(max_length=64, blank=True)
-    start = models.PositiveIntegerField(null=True, blank=True)
-    end = models.PositiveIntegerField(null=True, blank=True)
-    strand = models.CharField(max_length=1, blank=True)
-    length_nt = models.PositiveIntegerField()
-    sequence = models.TextField()
 
     def __str__(self):
         return f"{self.bacmet_id} {self.gene_name}"
 
 
-SEQ_TYPES = [("protein", "Protein (blastp)"), ("nucleotide", "Nucleotide (blastn)")]
-
-
-class LiteratureCache(models.Model):
-    gene_name = models.CharField(max_length=128, unique=True)
-    hit_count = models.IntegerField()
-    fetched_at = models.DateTimeField(auto_now=True)
+SEQ_TYPES = [("protein", "Protein (blastp)"), ("nucleotide", "Nucleotide (blastx)")]
 
 
 class Batch(models.Model):

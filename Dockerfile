@@ -21,7 +21,7 @@ RUN set -eux; \
     curl -fsSL "${url}.md5" | md5sum -c -; \
     tar -xzf "${file}"; \
     mkdir -p /opt/blast/bin; \
-    for prog in blastp blastn makeblastdb; do \
+    for prog in blastp blastx makeblastdb; do \
       cp "ncbi-blast-${BLAST_VERSION}+/bin/${prog}" /opt/blast/bin/; \
     done; \
     rm -rf /tmp/*

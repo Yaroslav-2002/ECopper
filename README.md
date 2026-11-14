@@ -7,7 +7,9 @@ so that candidates can be prioritised for lab validation.
 
 - One sequence → a detailed report (significance gate, score breakdown, ranked hits, CSV export).
 - A multi-sequence FASTA (a proteome, a gene set, contigs) → a batch screen with a filterable, ranked table.
-- Protein input is searched with `blastp`; nucleotide input with `blastn` on both strands.
+- Protein input is searched with `blastp`. Nucleotide input (genes, contigs) is translated in all six reading frames
+  with the bacterial genetic code and searched with `blastx`, against the same copper-resistance proteins, so both
+  modes are scored on protein identity.
 
 > The score is an expert heuristic for prioritising candidates, not an established standard.
 > The best-hit method can miss novel genes with low similarity. Confirm results experimentally.
@@ -23,7 +25,7 @@ docker compose up --build
 ```
 
 Open <http://localhost:8000>. The first build downloads BLAST+ 2.17.0 from NCBI (about 300 MB) and takes a few minutes;
-later starts take seconds. On every start the container builds the copper reference tables and BLAST databases
+later starts take seconds. On every start the container builds the copper reference table and BLAST protein database
 from `data/`, then serves the app.
 
 - Stop: `Ctrl+C`, or `docker compose down`.
@@ -37,7 +39,7 @@ Images build for both x86-64 and ARM (Apple Silicon) machines.
 
 Requires Python 3.11+ and [NCBI BLAST+](https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/) (2.17.0 is the tested version).
 
-1. Install BLAST+ so that `blastp`, `blastn` and `makeblastdb` are on your PATH. Alternatively:
+1. Install BLAST+ so that `blastp`, `blastx` and `makeblastdb` are on your PATH. Alternatively:
    - unpack a BLAST+ release into `tools/` (the app finds `tools/ncbi-blast-*/bin` automatically), or
    - set `BLAST_BIN_DIR` to the folder that contains the programs.
 
@@ -51,12 +53,11 @@ Requires Python 3.11+ and [NCBI BLAST+](https://ftp.ncbi.nlm.nih.gov/blast/execu
    pip install -r requirements.txt
    ```
 
-3. Create the database and build the copper reference databases:
+3. Create the database and build the copper reference database:
 
    ```bash
    python manage.py migrate
-   python manage.py build_cu_db       # protein (blastp) database
-   python manage.py build_cu_nt_db    # nucleotide (blastn) database
+   python manage.py build_cu_db       # copper reference table + BLAST protein database
    ```
 
 4. Start the development server and open <http://127.0.0.1:8000>:
@@ -79,7 +80,7 @@ All settings have working defaults for local use. Environment variables:
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | empty | Needed behind a proxy or on another domain, e.g. `https://cu.example.org`. |
 | `CUREMEDIATE_DB_PATH` | `db.sqlite3` in the project folder | SQLite database file. |
 | `CUREMEDIATE_DATA_DIR` | `data/` | Folder with the BacMet input files and the generated BLAST databases. |
-| `BLAST_BIN_DIR` | auto-detected | Folder containing `blastp`, `blastn` and `makeblastdb`. |
+| `BLAST_BIN_DIR` | auto-detected | Folder containing `blastp`, `blastx` and `makeblastdb`. |
 
 The Docker setup is meant for running on your own machine. To expose it on a network, set your own
 `DJANGO_SECRET_KEY` and `DJANGO_ALLOWED_HOSTS`, and put it behind an HTTPS reverse proxy.
@@ -103,10 +104,10 @@ The rules live in [`screening/services/scoring.py`](screening/services/scoring.p
 ```
 config/                  Django settings and URLs
 screening/               the app: models, views, forms, templates, static files
-  services/blast.py      runs blastp / blastn
+  services/blast.py      runs blastp / blastx
   services/scoring.py    significance gate, criteria and ranking
-  management/commands/   build_cu_db, build_cu_nt_db
-data/                    BacMet input files (BLAST databases are generated here)
+  management/commands/   build_cu_db
+data/                    reference data (the BLAST database is generated here)
 examples/                example FASTA files, also offered as one-click examples on the upload page
 docker/entrypoint.sh     container start-up: migrate, build databases, start gunicorn
 ```
@@ -116,4 +117,14 @@ docker/entrypoint.sh     container start-up: migrate, build databases, start gun
 - **BacMet** – Antibacterial Biocide and Metal Resistance Genes Database, experimentally confirmed set (BacMet2 EXP).
   Pal C., Bengtsson-Palme J., Rensing C., Kristiansson E., Larsson D.G.J. (2014).
   *BacMet: antibacterial biocide and metal resistance genes database.* Nucleic Acids Research 42(D1): D737–D743.
+- **UniProt** and **NCBI Gene** – protein names, descriptions and NCBI Gene links for the copper genes
+  (`data/copper_genes_annotation.tsv`), used to classify each protein's mechanism. UniProt data is CC BY 4.0.
 - **NCBI BLAST+** – Camacho C. et al. (2009). *BLAST+: architecture and applications.* BMC Bioinformatics 10: 421.
+
+Files in `data/`:
+
+| File | Source | Used for |
+|---|---|---|
+| `BacMet2_EXP_database.fasta` | BacMet 2 (EXP) | protein sequences; the 133 copper entries form the BLAST database |
+| `BacMet2_EXP.753.mapping.txt` | BacMet 2 (EXP) | gene, organism and metal list per entry (copper selection, criterion B) |
+| `copper_genes_annotation.tsv` | derived from UniProt and NCBI Gene | protein descriptions (criterion C) and NCBI Gene links |

@@ -124,7 +124,7 @@ def _check_protein(seq):
         raise forms.ValidationError(f"Invalid amino-acid characters: {', '.join(bad)}.")
     if set(seq) <= NUCLEOTIDE_LETTERS:
         raise forms.ValidationError(
-            "This looks like a nucleotide sequence; choose 'Nucleotide (blastn)' as the sequence type."
+            "This looks like a nucleotide sequence; choose 'Nucleotide (blastx)' as the sequence type."
         )
     low, high = PROTEIN_LENGTH
     if not low <= len(seq) <= high:

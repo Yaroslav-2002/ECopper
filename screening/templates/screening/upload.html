@@ -28,7 +28,7 @@
             {% if radio.data.value == "protein" %}
             <span class="opt-desc d-block">Amino-acid sequences, 30–5000 aa. Searched with blastp against BacMet copper-resistance proteins.</span>
             {% else %}
-            <span class="opt-desc d-block">DNA/RNA such as genes or contigs, at least 30 nt. Both strands searched with blastn.</span>
+            <span class="opt-desc d-block">DNA/RNA such as genes or contigs, at least 30 nt. Translated in all six frames and searched with blastx against the same proteins.</span>
             {% endif %}
           </label>
         </div>

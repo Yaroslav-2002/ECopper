@@ -13,8 +13,7 @@ if [ -z "${DJANGO_SECRET_KEY}" ]; then
 fi
 
 python manage.py migrate --noinput
-# Rebuild the copper reference tables and BLAST databases from data/ (takes a few seconds).
+# Rebuild the copper reference table and BLAST protein database from data/ (takes a few seconds).
 python manage.py build_cu_db
-python manage.py build_cu_nt_db
 
 exec "$@"

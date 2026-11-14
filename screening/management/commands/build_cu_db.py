@@ -1,3 +1,4 @@
+import csv
 import re
 
 from Bio import SeqIO
@@ -46,11 +47,27 @@ def read_mapping(path):
     return rows
 
 
+def read_annotation(path):
+    """UniProt / NCBI Gene annotation per BacMet ID: protein descriptions and the NCBI Gene link."""
+    with open(path, encoding="utf-8-sig", newline="") as fh:
+        reader = csv.DictReader(fh, delimiter="\t")
+        if "bacmet_id" not in (reader.fieldnames or []):
+            raise CommandError(f"No bacmet_id column in {path.name}.")
+        return {
+            r["bacmet_id"].strip(): {
+                "protein_name": (r.get("uniprot_protein_name") or "").strip()[:255],
+                "ncbi_description": (r.get("ncbi_description") or "").strip()[:255],
+                "ncbi_gene_url": (r.get("ncbi_gene_url") or "").strip()[:255],
+            }
+            for r in reader if r["bacmet_id"].strip()
+        }
+
+
 class Command(BaseCommand):
-    help = "Build the copper subset of BacMet EXP and its BLAST protein database."
+    help = "Build the copper subset of BacMet EXP with its annotation, and its BLAST protein database."
 
     def handle(self, *args, **options):
-        for path in (settings.BACMET_FASTA, settings.BACMET_MAPPING):
+        for path in (settings.BACMET_FASTA, settings.BACMET_MAPPING, settings.CU_ANNOTATION):
             if not path.exists():
                 raise CommandError(f"Missing file: {path}")
 
@@ -70,8 +87,14 @@ class Command(BaseCommand):
         if not sequences:
             raise CommandError("No copper entries matched FASTA headers.")
 
+        annotation = read_annotation(settings.CU_ANNOTATION)
+        unannotated = sorted(set(sequences) - set(annotation))
+        if unannotated:
+            self.stdout.write(self.style.WARNING(
+                f"No annotation for {len(unannotated)} entries (mechanism criterion skipped): {', '.join(unannotated[:10])}"
+            ))
         genes = [
-            BacMetGene(sequence=sequences[bid], **cu_rows[bid])
+            BacMetGene(sequence=sequences[bid], **cu_rows[bid], **annotation.get(bid, {}))
             for bid in sorted(sequences)
         ]
         out_fasta = settings.DATA_DIR / settings.CU_FASTA_NAME
