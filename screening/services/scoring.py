@@ -29,6 +29,7 @@ class Ref:
     references: str = ""
     description: str = ""
     ncbi_gene_url: str = ""
+    bacmet_url: str = ""
 
 
 def format_evalue(evalue, digits=1):
@@ -50,7 +51,7 @@ def _references(ids):
     return {
         bacmet_id: Ref(
             gene.gene_name, gene.organism, gene.compounds, gene.dataset, gene.references,
-            gene.protein_name or gene.ncbi_description, gene.ncbi_gene_url,
+            gene.protein_name or gene.ncbi_description, gene.ncbi_gene_url, gene.bacmet_url,
         )
         for bacmet_id, gene in BacMetGene.objects.in_bulk(ids, field_name="bacmet_id").items()
     }
@@ -65,6 +66,7 @@ def score_hit(h, refs):
     return {
         "bacmet_id": h["bacmet_id"], "gene_name": ref.gene_name, "organism": ref.organism,
         "compounds": ref.compounds, "description": ref.description[:255], "ncbi_gene_url": ref.ncbi_gene_url,
+        "bacmet_url": ref.bacmet_url,
         "identity": h["identity"], "align_length": h["align_length"], "evalue": h["evalue"],
         "bitscore": h["bitscore"], "query_start": h["query_start"], "query_end": h["query_end"],
         "ref_coverage": ref_cov, **s, "notes": "; ".join(s["notes"]),

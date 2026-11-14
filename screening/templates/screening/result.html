@@ -83,7 +83,9 @@
           <span class="criterion-pts">{{ top.score_bacmet|floatformat }} / {{ max_points.bacmet }}</span>
         </div>
       </div>
-      <div class="criterion-text">Experimentally confirmed BacMet genes score 3, predicted ones 1. The reference set is BacMet EXP (experimentally confirmed).</div>
+      <div class="criterion-text">{% if top.score_bacmet == max_points.bacmet %}{{ top.gene_name }} is experimentally confirmed:
+        <a href="{{ top.bacmet_link }}" target="_blank" rel="noopener">{% if top.bacmet_url %}its BacMet EXP entry {{ top.bacmet_id }}{% else %}BacMet EXP entries for {{ top.gene_name }}{% endif %}</a>.
+        {% endif %}Experimentally confirmed BacMet genes score 3, predicted ones 1.</div>
     </div>
     <div class="criterion">
       <div>
@@ -142,7 +144,7 @@
             <strong>{{ h.gene_name }}</strong>
             {% if h.description %}<div class="cell-sub">{{ h.description }}</div>{% endif %}
             <div class="cell-sub">
-              <a href="{{ h.bacmet_url }}" target="_blank" rel="noopener">{{ h.bacmet_id }}</a>
+              <a href="{{ h.bacmet_link }}" target="_blank" rel="noopener" title="BacMet experimentally confirmed database">{{ h.bacmet_id }}</a>
               {% if h.ncbi_gene_url %} · <a href="{{ h.ncbi_gene_url }}" target="_blank" rel="noopener">NCBI Gene</a>{% endif %}
             </div>
           </td>

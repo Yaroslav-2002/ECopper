@@ -78,7 +78,7 @@
         <tr class="cat-{{ cat }}" data-level="{{ cat }}" data-href="{% url 'result' a.pk %}" title="{{ a.conclusion }}">
           <td class="num">{{ forloop.counter }}</td>
           <td class="cell-id"><a href="{% url 'result' a.pk %}"><strong>{{ a.query_id|breakable }}</strong></a><div class="cell-sub">{{ a.length }} {{ b.unit }}</div></td>
-          <td>{{ h.gene_name }}<div class="cell-sub"><a href="{{ h.bacmet_url }}" target="_blank" rel="noopener">{{ h.bacmet_id }}</a></div></td>
+          <td>{{ h.gene_name }}<div class="cell-sub"><a href="{{ h.bacmet_link }}" target="_blank" rel="noopener" title="BacMet experimentally confirmed database">{{ h.bacmet_id }}</a></div></td>
           <td data-value="{{ h.identity }}">
             <div class="meter"><div class="meter-track"><div class="meter-fill" style="width:{{ h.identity|stringformat:'.1f' }}%"></div></div><span class="meter-val">{{ h.identity|floatformat:1 }}%</span></div>
           </td>

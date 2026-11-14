@@ -87,4 +87,6 @@ MAKEBLASTDB_BIN = os.path.join(BLAST_BIN_DIR, "makeblastdb") if BLAST_BIN_DIR el
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # per FASTA file or pasted sequence text
 # Django rejects form bodies over 2.5 MB by default; leave room for a full-size pasted sequence.
 DATA_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_BYTES + 1024 * 1024
-BACMET_GENE_URL = "http://bacmet.biomedicine.gu.se/advanced_BacMet_EXP_connect_to_ALL.pl?gene={gene}"
+# Search of the BacMet Experimentally Confirmed database; a BacMet ID opens that single entry. (http: the site's
+# https certificate does not match its host name.)
+BACMET_EXP_URL = "http://bacmet.biomedicine.gu.se/general_search_get_tables.pl?keywords={query}"

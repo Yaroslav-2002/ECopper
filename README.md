@@ -145,4 +145,4 @@ Files in `data/`:
 |---|---|---|
 | `BacMet2_EXP_database.fasta` | BacMet 2 (EXP) | protein sequences; the 133 copper entries form the BLAST database |
 | `BacMet2_EXP.753.mapping.txt` | BacMet 2 (EXP) | gene, organism and metal list per entry (copper selection, other-metals criterion) |
-| `copper_genes_annotation.tsv` | derived from UniProt and NCBI Gene | protein descriptions, NCBI Gene links and an optional `references` column (";"-separated PubMed IDs, DOIs or titles) |
+| `copper_genes_annotation.tsv` | derived from UniProt and NCBI Gene | protein descriptions and NCBI Gene links; `references` (PubMed IDs) and `bacmet_url` (the entry in the BacMet experimentally confirmed database) were taken from the BacMet website, which lacks the 37 entries added in BacMet 2 (those are left empty and link to a BacMet EXP search by gene name) |

@@ -11,8 +11,9 @@ from .services import ranking, scoring
 from .services.blast import db_exists
 from .services.scoring import NO_HIT, Ref, evaluate
 
+EXP_URL = "http://bacmet.biomedicine.gu.se/general_search_get_tables.pl?keywords="
 CUEO = Ref("cueO", "Escherichia coli", "Copper (Cu)", references="PMID: 11080161",
-           description="Multicopper oxidase CueO")
+           description="Multicopper oxidase CueO", bacmet_url=EXP_URL + "BAC0103")
 COPA = Ref("copA", "Escherichia coli", "Copper (Cu), Silver (Ag)",
            references="10639134; 10.1128/JB.182.5.1323-1327.2000", description="Copper-exporting P-type ATPase")
 
@@ -163,10 +164,14 @@ class ViewTests(TestCase):
         self.assertIn("score_blast (/5),score_bacmet (/3),score_metals (/2),total_score (/10),Tier", csv_text)
         self.assertIn("https://pubmed.ncbi.nlm.nih.gov/10639134/ ; https://doi.org/10.1128/JB.182.5.1323-1327.2000",
                       csv_text)
+        self.assertIn(f"{EXP_URL}BAC0103", csv_text)  # stored BacMet EXP entry link
+        self.assertIn(f"{EXP_URL}copA", csv_text)  # no entry link: BacMet EXP search by gene name
+        self.assertNotIn("connect_to_ALL", csv_text)  # never the predicted database
         for a in Analysis.objects.all():
             page = self.client.get(reverse("result", args=[a.pk]))
             self.assertContains(page, f"{a.tier} tier")
             self.assertContains(page, "Score breakdown")
+            self.assertContains(page, "is experimentally confirmed")
             self.assertContains(self.client.get(reverse("result_csv", args=[a.pk])), "n_references")
         self.assertContains(self.client.get(reverse("history")), "Batch screens")
 

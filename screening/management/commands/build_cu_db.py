@@ -48,8 +48,8 @@ def read_mapping(path):
 
 
 def read_annotation(path):
-    """Annotation per BacMet ID: UniProt / NCBI Gene descriptions, the NCBI Gene link and, from an optional
-    'references' column, the gene's literature references (";"-separated PubMed IDs, DOIs or titles)."""
+    """Annotation per BacMet ID: UniProt / NCBI Gene descriptions, the NCBI Gene link and, from optional columns,
+    the gene's literature references (";"-separated PubMed IDs, DOIs or titles) and its BacMet EXP page."""
     with open(path, encoding="utf-8-sig", newline="") as fh:
         reader = csv.DictReader(fh, delimiter="\t")
         if "bacmet_id" not in (reader.fieldnames or []):
@@ -60,6 +60,7 @@ def read_annotation(path):
                 "ncbi_description": (r.get("ncbi_description") or "").strip()[:255],
                 "ncbi_gene_url": (r.get("ncbi_gene_url") or "").strip()[:255],
                 "references": (r.get("references") or "").strip(),
+                "bacmet_url": (r.get("bacmet_url") or "").strip()[:255],
             }
             for r in reader if r["bacmet_id"].strip()
         }

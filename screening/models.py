@@ -14,6 +14,7 @@ class BacMetGene(models.Model):
     sequence = models.TextField()
     # From data/copper_genes_annotation.tsv: protein description, literature references and the NCBI Gene link.
     references = models.TextField(blank=True)  # ";"-separated PubMed IDs, DOIs or titles
+    bacmet_url = models.CharField(max_length=255, blank=True)  # entry in the BacMet EXP database
     protein_name = models.CharField(max_length=255, blank=True)  # UniProt
     ncbi_description = models.CharField(max_length=255, blank=True)  # NCBI Gene
     ncbi_gene_url = models.CharField(max_length=255, blank=True)
@@ -78,6 +79,7 @@ class Hit(models.Model):
     ref_coverage = models.FloatField(null=True, blank=True)  # % of the reference gene covered by the alignment
     description = models.CharField(max_length=255, blank=True)
     ncbi_gene_url = models.CharField(max_length=255, blank=True)
+    bacmet_url = models.CharField(max_length=255, blank=True)  # entry in the BacMet EXP database
     # 10-point ranking (services/ranking.py); total_score None marks a hit from an older scoring scheme.
     similarity = models.FloatField(null=True, blank=True)  # identity x ref_coverage / 100
     score_blast = models.FloatField(null=True, blank=True)
@@ -93,9 +95,6 @@ class Hit(models.Model):
         ordering = ["rank"]
 
     @property
-    def query_gene(self):
-        return self.gene_name.split("/")[0].strip()
-
-    @property
-    def bacmet_url(self):
-        return settings.BACMET_GENE_URL.format(gene=quote(self.query_gene))
+    def bacmet_link(self):
+        """The reference gene in the BacMet Experimentally Confirmed database (by gene name if no entry link)."""
+        return self.bacmet_url or settings.BACMET_EXP_URL.format(query=quote(self.gene_name.split("/")[0].strip()))
