@@ -25,12 +25,12 @@ class UploadForm(forms.Form):
         label=f"FASTA file (.fasta, .fa, .faa, .fna; max {MAX_UPLOAD_MB})", required=False
     )
     sequence_text = forms.CharField(
-        label="…or paste sequence(s)",
+        label="…or paste one sequence",
         required=False,
         strip=True,
         widget=forms.Textarea(attrs={
             "rows": 8, "spellcheck": "false",
-            "placeholder": ">my_sequence\nMKVLAAGIVG...\n\nFASTA with one or more '>' headers, or just the bare sequence.",
+            "placeholder": ">my_sequence\nMKVLAAGIVG...\n\nFASTA with exactly one '>' header, or just one bare sequence.",
         }),
     )
 
@@ -75,7 +75,7 @@ class UploadForm(forms.Form):
 
 
 def parse_input(text, filename, seq_type):
-    """Parse FASTA text into validated records (single sequence) or records + skipped (batch)."""
+    """Parse FASTA text and require exactly one valid sequence."""
     try:
         records = list(SeqIO.parse(io.StringIO(text), "fasta"))
     except Exception:
@@ -83,24 +83,13 @@ def parse_input(text, filename, seq_type):
     if not records:
         raise forms.ValidationError("The input contains no sequences.")
 
-    if len(records) == 1:
-        # Single sequence: any problem rejects the input.
-        record = _check_record(records[0], 1, seq_type)
-        return {"filename": filename, "seq_type": seq_type, "batch": False, "records": [record], "skipped": []}
-
-    # Several sequences: screen the valid ones and report the rest as skipped.
-    valid, skipped = [], []
-    for i, rec in enumerate(records, 1):
-        try:
-            valid.append(_check_record(rec, i, seq_type))
-        except forms.ValidationError as exc:
-            skipped.append([_query_id(rec, i), exc.messages[0]])
-    if not valid:
+    if len(records) > 1:
         raise forms.ValidationError(
-            f"None of the {len(records)} sequences could be screened. First problem: "
-            f"{skipped[0][0]}: {skipped[0][1]}"
+            f"Only one sequence can be analyzed at a time. Found {len(records)} sequences. "
+            "Please upload or paste exactly one sequence."
         )
-    return {"filename": filename, "seq_type": seq_type, "batch": True, "records": valid, "skipped": skipped}
+    record = _check_record(records[0], 1, seq_type)
+    return {"filename": filename, "seq_type": seq_type, "batch": False, "records": [record], "skipped": []}
 
 
 def _query_id(rec, index):

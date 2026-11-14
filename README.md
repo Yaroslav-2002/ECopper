@@ -1,12 +1,12 @@
 # CuRemediate
 
 A small web app that screens protein or DNA sequences for **copper bioremediation potential**.
-Each sequence is searched with NCBI BLAST+ against experimentally confirmed copper-resistance genes from
+Each sequence is searched with NCBI BLAST+ against experimental and predicted copper-resistance proteins from
 [BacMet](http://bacmet.biomedicine.gu.se/), and the hits are ranked with a transparent 10-point score
 so that candidates can be prioritised for lab validation.
 
 - One sequence → a detailed report (score breakdown, article links, ranked hits, CSV export).
-- A multi-sequence FASTA (a proteome, a gene set, contigs) → a batch screen with a filterable, ranked table.
+- Upload or paste exactly one sequence. Multiple FASTA entries are rejected before screening.
 - Protein input is searched with `blastp`. Nucleotide input (genes, contigs) is translated in all six reading frames
   with the bacterial genetic code and searched with `blastx`, against the same copper-resistance proteins, so both
   modes are scored on protein identity.
@@ -87,18 +87,26 @@ The Docker setup is meant for running on your own machine. To expose it on a net
 
 ## How results are ranked
 
-Every BLAST hit (up to 5 per protein, 10 per DNA sequence; E-value cutoff 1e-5) gets a score out of 10:
+The experimental and predicted copper databases are searched separately (up to 5 hits per protein or 10 per DNA
+sequence from each database; E-value cutoff 1e-5). Each qualifying hit gets a score out of 10:
 
 1. **BLAST similarity (0–5)**: identity × reference coverage / 100. ≥ 80 → 5, 60–79 → 4, 40–59 → 3, 20–39 → 2,
    below 20 → 0. If the E-value is above 1e-5 (or missing), this criterion is capped at 1.
-2. **BacMet evidence (0–3)**: experimentally confirmed → 3, predicted → 1. The reference set is BacMet EXP, so
-   every hit currently gets 3.
-3. **Other metals (0–2)**: BacMet lists at least one metal besides copper → 2, copper only → 1.
+2. **BacMet evidence (0–3)**: experimentally confirmed → 3, predicted → 1. An experimental match takes priority
+   over a predicted one. Neither database matches → no candidate result, score 0.
+3. **Other metals (0–2)**: copper plus at least one other metal → 2, copper only → 1;
+   absent, unrecognized or non-copper annotations → 0.
+
+The supplied predicted FASTA contains gene-family names but no per-protein compounds. Its families are matched
+to the EXP mapping (full family name first, then an exact alias). Only metals shared by **all** matching mapping
+entries are used. Conflicting copper associations leave compounds empty and unscored. Notes identify the mapping
+IDs and mark the annotation as inferred; EXP organisms, descriptions, article references and NCBI links are not
+copied to predicted proteins. Predicted IDs starting with `PRE` are stable local identifiers, not official BacMet IDs.
 
 Tiers: **High** ≥ 8, **Medium** 5–7.9, **Low** below 5. Missing data counts as 0 points and is listed in the notes.
 Literature references are parsed into PubMed / DOI links and counted (`n_references`), but are not scored.
 
-Hits are ranked by total score, then higher similarity, then lower E-value. A sequence takes the score of its
+Hits are ranked with experimental matches first, then total score, higher similarity and lower E-value. A sequence takes the score of its
 top-ranked hit, and batch results are ordered the same way.
 
 All weights, bins, tier cut-offs and the metal list are in one dictionary, `SCORING`, in
@@ -132,7 +140,7 @@ docker/entrypoint.sh     container start-up: migrate, build databases, start gun
 
 ## Data sources
 
-- **BacMet** – Antibacterial Biocide and Metal Resistance Genes Database, experimentally confirmed set (BacMet2 EXP).
+- **BacMet** – Antibacterial Biocide and Metal Resistance Genes Database, experimental and predicted sets (BacMet 2).
   Pal C., Bengtsson-Palme J., Rensing C., Kristiansson E., Larsson D.G.J. (2014).
   *BacMet: antibacterial biocide and metal resistance genes database.* Nucleic Acids Research 42(D1): D737–D743.
 - **UniProt** and **NCBI Gene** – protein names, descriptions and NCBI Gene links for the copper genes
@@ -143,6 +151,7 @@ Files in `data/`:
 
 | File | Source | Used for |
 |---|---|---|
-| `BacMet2_EXP_database.fasta` | BacMet 2 (EXP) | protein sequences; the 133 copper entries form the BLAST database |
+| `BacMet2_EXP_database.fasta` | BacMet 2 (EXP) | experimental copper proteins for the `bacmet_cu` BLAST database |
+| `BacMet2_predicted_database.fasta.gz` | BacMet 2 (predicted), supplied locally | copper-associated gene families for the separate `bacmet_cu_predicted` BLAST database; read directly from gzip |
 | `BacMet2_EXP.753.mapping.txt` | BacMet 2 (EXP) | gene, organism and metal list per entry (copper selection, other-metals criterion) |
 | `copper_genes_annotation.tsv` | derived from UniProt and NCBI Gene | protein descriptions and NCBI Gene links; `references` (PubMed IDs) and `bacmet_url` (the entry in the BacMet experimentally confirmed database) were taken from the BacMet website, which lacks the 37 entries added in BacMet 2 (those are left empty and link to a BacMet EXP search by gene name) |

@@ -1,14 +1,19 @@
 from pathlib import Path
+import gzip
+from tempfile import TemporaryDirectory
 from unittest import mock, skipUnless
 
 from django.conf import settings
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 
-from .management.commands.build_cu_db import read_annotation, read_mapping
-from .models import Analysis, BacMetGene
+from .management.commands.build_cu_db import predicted_genes, read_annotation, read_mapping
+from .models import Analysis, BacMetGene, Batch
+from .views import _save_analysis
 from .services import ranking, scoring
 from .services.blast import db_exists
+from .services import blast
 from .services.scoring import NO_HIT, Ref, evaluate
 
 EXP_URL = "http://bacmet.biomedicine.gu.se/general_search_get_tables.pl?keywords="
@@ -63,6 +68,10 @@ class RankingRuleTests(TestCase):
         r = score(compounds=None)
         self.assertEqual(r["score_metals"], 0)
         self.assertIn("compounds missing", r["notes"])
+        for compounds in ("Triclosan", "Hydrochloric acid (HCl) [class: Acid]", "Zinc (Zn)", "unknown"):
+            with self.subTest(compounds=compounds):
+                self.assertEqual(score(compounds=compounds)["score_metals"], 0)
+        self.assertEqual(score(compounds="Cu, Zn")["score_metals"], 2)
 
     def test_metals_in(self):
         self.assertEqual(ranking.metals_in("Copper (Cu), Zinc (Zn), Sodium Deoxycholate (SDC) [class: Acid]"),
@@ -112,7 +121,7 @@ class RankingRuleTests(TestCase):
 class EvaluateTests(TestCase):
     def test_no_hits(self):
         r = evaluate("Q", [], {})
-        self.assertEqual((r["tier"], r["total_score"], r["hits"]), (NO_HIT, None, []))
+        self.assertEqual((r["tier"], r["total_score"], r["hits"]), (NO_HIT, 0, []))
 
     def test_cueo_example(self):
         r = evaluate("Query X", [hit("B1", identity=87)], {"B1": CUEO})
@@ -136,10 +145,56 @@ class EvaluateTests(TestCase):
         self.assertEqual(r["total_score"], 10)
 
     def test_unknown_reference_flagged(self):
-        top = evaluate("Q", [hit("B9")], {})["hits"][0]
-        self.assertEqual((top["score_bacmet"], top["score_metals"], top["total_score"]), (0, 0, 5))
-        self.assertIn("BacMet dataset missing", top["notes"])
-        self.assertIn("compounds missing", top["notes"])
+        r = evaluate("Q", [hit("B9")], {})
+        self.assertEqual((r["hits"], r["total_score"], r["tier"]), ([], 0, NO_HIT))
+
+    def test_predicted_only_and_experimental_priority(self):
+        pred = Ref("copA", compounds="Cu, Ag", dataset="predicted")
+        r = evaluate("Q", [hit("PRE1", identity=100)], {"PRE1": pred})
+        self.assertEqual(r["hits"][0]["score_bacmet"], 1)
+        r = evaluate("Q", [hit("PRE1", identity=100), hit("B1", identity=30)], {"PRE1": pred, "B1": CUEO})
+        self.assertEqual(r["hits"][0]["dataset"], "experimental")
+        self.assertEqual(r["hits"][0]["score_bacmet"], 3)
+        r = evaluate("Q", [hit("B1", evalue=0.1)], {"B1": CUEO})
+        self.assertEqual((r["hits"], r["total_score"]), ([], 0))
+
+
+class PredictedImportTests(TestCase):
+    @mock.patch("screening.services.blast.db_exists", return_value=True)
+    @mock.patch("screening.services.blast._run")
+    def test_both_databases_searched_without_losing_predicted_identifiers(self, run, exists):
+        run.side_effect = [
+            "q0\tBAC0001\t90\t100\t1e-50\t300\t1\t100\t100\t1\t100\t100\tgene\n",
+            "q0\tPRE123\t95\t100\t1e-60\t350\t1\t100\t100\t1\t100\t100\tBAC0001 family annotation\n",
+        ]
+        results = blast.run_blast_many(["MKVLAAGIVG" * 10])
+        self.assertEqual([h["bacmet_id"] for h in results[0]], ["BAC0001", "PRE123"])
+        self.assertEqual([c.args[0][c.args[0].index("-db") + 1] for c in run.call_args_list],
+                         [settings.CU_DB_NAME, settings.CU_PRED_DB_NAME])
+
+    def test_family_annotation_is_conservative_and_keeps_predicted_identity(self):
+        rows = [
+            {"bacmet_id": "BAC1", "gene_name": "copA", "compounds": "Copper (Cu), Silver (Ag)"},
+            {"bacmet_id": "BAC2", "gene_name": "copA", "compounds": "Copper (Cu)"},
+            {"bacmet_id": "BAC3", "gene_name": "cueR/ybbI", "compounds": "Copper (Cu), Zinc (Zn)"},
+            {"bacmet_id": "BAC4", "gene_name": "other", "compounds": "Zinc (Zn)"},
+        ]
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "pred.fasta.gz"
+            with gzip.open(path, "wt") as f:
+                for name in ("copA", "cueR/ybbI", "other", "unmapped"):
+                    f.write(f">gi|1|ref|WP_{name}| protein [Predicted organism] [{name}]\nMKVLAAGIVG\n")
+                f.write(">gi|2|sp|P12345|PROTEIN description [copA]\nMKVLAAGIVG\n")
+            genes = list(predicted_genes(path, rows))
+        self.assertEqual(len(genes), 3)
+        self.assertEqual([g.compounds for g in genes], ["Cu", "Cu, Zn", "Cu"])
+        self.assertEqual(genes[-1].organism, "")
+        for gene in genes:
+            self.assertEqual(gene.dataset, "predicted")
+            self.assertTrue(gene.bacmet_id.startswith("PRE"))
+            self.assertEqual(gene.references, "")
+            self.assertEqual(gene.ncbi_gene_url, "")
+            self.assertIn("inferred", gene.annotation_note)
 
 
 def fake_screen(sequences, seq_type, query_ids):
@@ -151,9 +206,76 @@ def fake_screen(sequences, seq_type, query_ids):
 class ViewTests(TestCase):
     FASTA = f">weak\n{'MKVLAAGIVG' * 10}\n>good\n{'MKVLAAGIVG' * 10}\n"
 
+    @mock.patch("screening.views.screen_many")
+    def test_multiple_sequences_rejected_before_screening(self, screen):
+        for seq_type in ("protein", "nucleotide"):
+            for source in ("sequence_text", "file"):
+                with self.subTest(seq_type=seq_type, source=source):
+                    value = (SimpleUploadedFile("input.fasta", self.FASTA.encode())
+                             if source == "file" else self.FASTA)
+                    resp = self.client.post(reverse("upload"), {"seq_type": seq_type, source: value})
+                    self.assertContains(resp, "Only one sequence can be analyzed at a time.")
+                    self.assertContains(resp, "Found 2 sequences.")
+        screen.assert_not_called()
+        self.assertFalse(Analysis.objects.exists())
+        self.assertFalse(Batch.objects.exists())
+
+    @mock.patch("screening.views.screen_many", side_effect=fake_screen)
+    def test_single_sequence_upload(self, screen):
+        for seq_type, sequence in (("protein", "MKVLAAGIVG" * 10), ("nucleotide", "ACGT" * 10)):
+            for source in ("sequence_text", "file"):
+                with self.subTest(seq_type=seq_type, source=source):
+                    text = f">good\n{sequence}\n"
+                    value = SimpleUploadedFile("input.fasta", text.encode()) if source == "file" else text
+                    resp = self.client.post(reverse("upload"), {"seq_type": seq_type, source: value}, follow=True)
+                    self.assertContains(resp, "10/10")
+                    analysis = Analysis.objects.latest("pk")
+                    self.assertEqual(analysis.sequence, sequence)
+                    self.assertIsNone(analysis.batch_id)
+                    screen.assert_called_with([sequence], seq_type, ["good"])
+
+    @mock.patch("screening.views.screen_many")
+    def test_predicted_report_labels_evidence_and_compound_source(self, screen):
+        url = "https://www.ncbi.nlm.nih.gov/protein/WP_011730513.1"
+        pred = Ref("copA", compounds="Cu", dataset="predicted",
+                   bacmet_url=url,
+                   annotation_note="Predicted family annotation inferred from EXP mapping: BAC0077")
+        screen.return_value = [evaluate("good", [hit("PRE123")], {"PRE123": pred})]
+        resp = self.client.post(reverse("upload"), {
+            "seq_type": "protein", "sequence_text": ">good\n" + "MKVLAAGIVG" * 10,
+        }, follow=True)
+        self.assertContains(resp, "is a predicted BacMet homolog, not experimentally confirmed")
+        self.assertContains(resp, "Predicted compound annotations are inferred")
+        self.assertNotContains(resp, "its BacMet EXP entry PRE123")
+        self.assertContains(resp, f'href="{url}"')
+        self.assertContains(resp, "Source protein record (NCBI)")
+        analysis = Analysis.objects.get()
+        self.assertEqual(analysis.hits.get().score_bacmet, 1)
+        self.assertEqual(analysis.hits.get().score_metals, 1)
+        self.assertContains(self.client.get(reverse("result_csv", args=[analysis.pk])), "BacMet dataset")
+        self.assertContains(self.client.get(reverse("result_csv", args=[analysis.pk])), url)
+
+    def test_saved_predicted_hit_resolves_reference_accession(self):
+        reference = BacMetGene.objects.create(bacmet_id="PREold", gene_name="copA", dataset="predicted",
+                                              accession="WP_011730513.1", sequence="MK")
+        a = Analysis.objects.create(filename="x", query_id="old", sequence="MK", length=2)
+        h = a.hits.create(rank=1, bacmet_id=reference.bacmet_id, gene_name="copA", dataset="predicted",
+                          identity=90, align_length=100, evalue=1e-50, bitscore=300)
+        url = "https://www.ncbi.nlm.nih.gov/protein/WP_011730513.1"
+        self.assertEqual(h.bacmet_link, url)
+        self.assertEqual(scoring._references({reference.bacmet_id})[reference.bacmet_id].bacmet_url, url)
+        self.assertContains(self.client.get(reverse("result", args=[a.pk])), f'href="{url}"')
+        self.assertContains(self.client.get(reverse("result_csv", args=[a.pk])), url)
+
     @mock.patch("screening.views.screen_many", side_effect=fake_screen)
     def test_batch_report(self, _):
-        resp = self.client.post(reverse("upload"), {"seq_type": "protein", "sequence_text": self.FASTA}, follow=True)
+        # Existing batch reports remain readable, although new uploads require one sequence.
+        batch = Batch.objects.create(filename="old.fasta", sequence_count=2, screened_count=2)
+        data = {"filename": "old.fasta", "seq_type": "protein"}
+        for query_id in ("weak", "good"):
+            record = {"query_id": query_id, "sequence": "MKVLAAGIVG" * 10}
+            _save_analysis(batch, data, record, fake_screen([record["sequence"]], "protein", [query_id])[0])
+        resp = self.client.get(reverse("batch", args=[batch.pk]))
         self.assertEqual(resp.status_code, 200)
         body = resp.content.decode()
         self.assertIn("10/10", body)
@@ -196,6 +318,8 @@ class BlastIntegrationTests(TestCase):
         annotation = read_annotation(settings.CU_ANNOTATION)
         BacMetGene.objects.bulk_create(
             BacMetGene(sequence="", **r, **annotation.get(r["bacmet_id"], {})) for r in rows)
+        BacMetGene.objects.bulk_create(predicted_genes(settings.BACMET_PREDICTED_FASTA,
+                                                     read_mapping(settings.BACMET_MAPPING)), batch_size=500)
 
     def read(self, name):
         return "".join(EXAMPLES.joinpath(name).read_text().splitlines()[1:])
@@ -206,6 +330,8 @@ class BlastIntegrationTests(TestCase):
         self.assertGreaterEqual(best["similarity"], 80)
         self.assertEqual(best["score_blast"], 5)
         self.assertEqual(r["tier"], "High")
+        self.assertEqual(best["dataset"], "experimental")
+        self.assertTrue(any(h["dataset"] == "predicted" for h in r["hits"]))
 
     def test_dna_gene_found_with_blastx_on_both_strands(self):
         protein = scoring.screen_many([self.read("copA_ecoli.fasta")], "protein", ["copA protein"])[0]

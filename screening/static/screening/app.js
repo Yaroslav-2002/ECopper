@@ -192,7 +192,13 @@
     var residues = seqs.reduce(function (s, x) { return s + x.length; }, 0);
     var unit = selectedType() === "nucleotide" ? "nt" : "aa";
     counter.textContent = seqs.length + " sequence" + (seqs.length === 1 ? "" : "s") + " · " +
-      residues.toLocaleString() + " " + unit + (seqs.length > 1 ? " · batch screen" : "");
+      residues.toLocaleString() + " " + unit;
+    if (parseFasta(text).length > 1) {
+      typeHint.textContent = "Only one sequence can be analyzed at a time. Please paste exactly one sequence.";
+      typeHint.classList.add("hint-warn");
+      return;
+    }
+    typeHint.classList.remove("hint-warn");
     guessType(text);
   }
 

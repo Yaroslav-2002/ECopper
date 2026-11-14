@@ -2,9 +2,9 @@
 {% block content %}
 <section class="intro">
   <span class="eyebrow">New analysis</span>
-  <h1>Screen sequences for copper bioremediation potential</h1>
-  <p>Each sequence is compared with experimentally confirmed copper-resistance genes from BacMet and ranked as a candidate for lab validation.
-    One sequence gives a detailed report; several (a proteome, a gene set) run as a batch screen.</p>
+  <h1>Screen a sequence for copper bioremediation potential</h1>
+  <p>Your sequence is compared with experimental and predicted copper-resistance proteins from BacMet and ranked as a candidate for lab validation.
+    Upload or paste exactly one sequence to get a detailed report.</p>
   <div class="steps" aria-hidden="true">
     <span><b>1</b>Choose sequence type</span>
     <span><b>2</b>Upload or paste FASTA</span>
@@ -38,7 +38,7 @@
     </fieldset>
 
     <div class="form-section">
-      <span class="form-label">Sequences</span>
+      <span class="form-label">One sequence</span>
       <div class="input-tabs">
         <div class="dropzone">
           <input type="file" name="{{ form.file.html_name }}" id="{{ form.file.id_for_label }}" accept=".fasta,.fa,.faa,.fna,.ffn,.fas" aria-label="{{ form.file.label }}">
@@ -84,7 +84,7 @@
         <svg class="icon btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <span class="label">Analyse</span>
       </button>
-      <p class="muted">Single sequences usually finish in a few seconds; large batches can take longer.</p>
+      <p class="muted">Analyze one sequence at a time. Results usually finish in a few seconds.</p>
     </div>
   </form>
 </div>
@@ -92,7 +92,7 @@
 <div class="loading-overlay" role="status" aria-live="polite">
   <div class="loading-card">
     <div class="big-spinner"></div>
-    <strong>Screening your sequences…</strong>
+    <strong>Screening your sequence…</strong>
     <p>Running BLAST against BacMet copper-resistance genes and ranking the hits.</p>
   </div>
 </div>
