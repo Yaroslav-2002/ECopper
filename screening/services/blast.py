@@ -13,18 +13,17 @@ class BlastError(Exception):
     pass
 
 
-# Per sequence type: BLAST program, database, database file suffix, how to (re)build it, extra options.
+# Per sequence type: BLAST program, extra options and hits kept per query. Both search the same copper
+# protein database, so identity and coverage always refer to the reference PROTEIN.
 SEARCHES = {
-    "protein": {
-        "bin": lambda: settings.BLASTP_BIN, "db": lambda: settings.CU_DB_NAME, "suffix": ".p*",
-        "build_cmd": "python manage.py build_cu_db", "options": [], "max_hits": 5,
-    },
+    "protein": {"bin": lambda: settings.BLASTP_BIN, "options": [], "max_hits": 5},
     "nucleotide": {
-        # Full blastn (not megablast) so diverged homologs from other species are still found.
-        "bin": lambda: settings.BLASTN_BIN, "db": lambda: settings.CU_NT_DB_NAME, "suffix": ".n*",
-        "build_cmd": "python manage.py build_cu_nt_db", "options": ["-task", "blastn"], "max_hits": 10,
+        # DNA is translated in all six reading frames with the bacterial genetic code (table 11). A contig can
+        # carry several copper genes, so more hits are kept. Query coordinates are in nucleotides.
+        "bin": lambda: settings.BLASTX_BIN, "options": ["-query_gencode", "11"], "max_hits": 10,
     },
 }
+BUILD_CMD = "python manage.py build_cu_db"
 
 
 def _run(cmd, input_text=None):
@@ -41,9 +40,8 @@ def _run(cmd, input_text=None):
     return proc.stdout
 
 
-def db_exists(seq_type="protein"):
-    s = SEARCHES[seq_type]
-    return any(settings.DATA_DIR.glob(s["db"]() + s["suffix"]))
+def db_exists():
+    return any(settings.DATA_DIR.glob(settings.CU_DB_NAME + ".p*"))
 
 
 def make_db():
@@ -53,22 +51,15 @@ def make_db():
     ])
 
 
-def make_nt_db():
-    return _run([
-        settings.MAKEBLASTDB_BIN, "-in", settings.CU_NT_FASTA_NAME,
-        "-dbtype", "nucl", "-out", settings.CU_NT_DB_NAME,
-    ])
-
-
 def run_blast_many(sequences, seq_type="protein"):
-    """BLAST all sequences in one run (blastp or blastn). Returns one hit list per input sequence, in order."""
+    """BLAST all sequences in one run (blastp or blastx). Returns one hit list per input sequence, in order."""
     s = SEARCHES[seq_type]
-    if not db_exists(seq_type):
-        raise BlastError(f"Cu {seq_type} database not found. Run: {s['build_cmd']}")
+    if not db_exists():
+        raise BlastError(f"Cu protein database not found. Run: {BUILD_CMD}")
     max_hits = s["max_hits"]
     query = "".join(f">q{i}\n{seq}\n" for i, seq in enumerate(sequences))
     out = _run([
-        s["bin"](), "-query", "-", "-db", s["db"](), *s["options"],
+        s["bin"](), "-query", "-", "-db", settings.CU_DB_NAME, *s["options"],
         "-outfmt", f"6 {OUT_FIELDS}", "-evalue", EVALUE,
         "-max_target_seqs", str(max_hits), "-max_hsps", "1",
         "-num_threads", str(max(1, min(8, os.cpu_count() or 1))),

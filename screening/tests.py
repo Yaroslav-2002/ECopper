@@ -185,7 +185,7 @@ class ViewTests(TestCase):
 EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
 
 
-@skipUnless(db_exists("protein"), "BLAST protein database not built")
+@skipUnless(db_exists(), "BLAST protein database not built")
 class BlastIntegrationTests(TestCase):
     def test_cueo_example_passes_gate(self):
         seq = "".join(EXAMPLES.joinpath("cueO_ecoli.fasta").read_text().splitlines()[1:])
@@ -194,3 +194,19 @@ class BlastIntegrationTests(TestCase):
         self.assertTrue(best["passes_gate"])
         self.assertGreaterEqual(best["ref_coverage"], 80)
         self.assertNotIn(r["category"], (NO_EVIDENCE, NOT_TRANSFERABLE))
+
+    def test_dna_gene_found_with_blastx_on_both_strands(self):
+        def read(name):
+            return "".join(EXAMPLES.joinpath(name).read_text().splitlines()[1:])
+
+        protein = scoring.screen_many([read("copA_ecoli.fasta")], "protein", ["copA protein"])[0]
+        dna = read("copA_ecoli_gene.fna")
+        reverse = dna[::-1].translate(str.maketrans("ACGT", "TGCA"))
+        for label, seq in (("forward", dna), ("reverse complement", reverse)):
+            with self.subTest(label):
+                r = scoring.screen_many([seq], "nucleotide", [label])[0]
+                best = r["hits"][0]
+                self.assertEqual(best["bacmet_id"], protein["hits"][0]["bacmet_id"])
+                self.assertGreaterEqual(best["identity"], 99)
+                self.assertTrue(best["passes_gate"])
+                self.assertEqual(r["category"], protein["category"])

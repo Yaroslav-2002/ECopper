@@ -40,25 +40,26 @@ def upload(request):
     return render(request, "screening/upload.html", {"form": form, "examples": _examples()})
 
 
-# One-click example inputs shown on the upload page: (file in examples/, button label).
+# One-click example inputs shown on the upload page: (file in examples/, button label, sequence type).
 EXAMPLES = [
-    ("copA_ecoli.fasta", "CopA · E. coli"),
-    ("cueO_ecoli.fasta", "CueO · E. coli"),
-    ("copZ_bsubtilis.fasta", "CopZ · B. subtilis"),
-    ("zntA_ecoli.fasta", "ZntA · E. coli"),
-    ("hba_human.fasta", "Hemoglobin α · human"),
+    ("copA_ecoli.fasta", "CopA · E. coli", "protein"),
+    ("cueO_ecoli.fasta", "CueO · E. coli", "protein"),
+    ("copZ_bsubtilis.fasta", "CopZ · B. subtilis", "protein"),
+    ("zntA_ecoli.fasta", "ZntA · E. coli", "protein"),
+    ("hba_human.fasta", "Hemoglobin α · human", "protein"),
+    ("copA_ecoli_gene.fna", "copA gene (DNA) · E. coli", "nucleotide"),
 ]
 
 
 def _examples():
     examples = {}
-    for filename, label in EXAMPLES:
+    for filename, label, seq_type in EXAMPLES:
         path = settings.BASE_DIR / "examples" / filename
         try:
             text = path.read_text(encoding="utf-8")
         except OSError:
             continue
-        examples[filename] = {"label": label, "seq_type": "protein", "text": text}
+        examples[filename] = {"label": label, "seq_type": seq_type, "text": text}
     return examples
 
 

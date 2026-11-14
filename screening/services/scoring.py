@@ -2,7 +2,7 @@
 import re
 from dataclasses import dataclass
 
-from ..models import BacMetGene, NucleotideGene
+from ..models import BacMetGene
 from .blast import run_blast_many
 
 CU_RE = re.compile(r"(?i:\bcopper\b)|\bCu\b")
@@ -113,23 +113,19 @@ def screen_many(sequences, seq_type="protein", query_ids=None):
     """Screen sequences with one BLAST run. Returns one result dict per sequence, in order."""
     query_ids = query_ids or [f"Query {i + 1}" for i in range(len(sequences))]
     raw_lists = run_blast_many(sequences, seq_type)
-    refs = _references({h["bacmet_id"] for raw in raw_lists for h in raw}, seq_type)
+    refs = _references({h["bacmet_id"] for raw in raw_lists for h in raw})
     return [evaluate(qid, raw, refs) for qid, raw in zip(query_ids, raw_lists)]
 
 
-def _references(ids, seq_type):
-    # Protein descriptions live in the nucleotide annotation table, keyed by the same BacMet ID.
-    annotations = NucleotideGene.objects.in_bulk(ids, field_name="bacmet_id")
-    genes = annotations if seq_type == "nucleotide" else BacMetGene.objects.in_bulk(ids, field_name="bacmet_id")
-    refs = {}
-    for bacmet_id, gene in genes.items():
-        ann = annotations.get(bacmet_id)
-        refs[bacmet_id] = Ref(
+def _references(ids):
+    return {
+        bacmet_id: Ref(
             gene.gene_name, gene.organism, gene.compounds,
-            (ann.protein_name, ann.ncbi_description) if ann else (),
-            ann.ncbi_gene_url if ann else "",
+            (gene.protein_name, gene.ncbi_description) if gene.protein_name or gene.ncbi_description else (),
+            gene.ncbi_gene_url,
         )
-    return refs
+        for bacmet_id, gene in BacMetGene.objects.in_bulk(ids, field_name="bacmet_id").items()
+    }
 
 
 def _annotate(h, refs):
