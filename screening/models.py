@@ -10,8 +10,11 @@ class BacMetGene(models.Model):
     accession = models.CharField(max_length=64, blank=True)
     organism = models.CharField(max_length=255, blank=True)
     compounds = models.TextField(blank=True)
+    dataset = models.CharField(max_length=16, default="experimental")  # BacMet "experimental" or "predicted"
     sequence = models.TextField()
-    # From data/copper_genes_annotation.tsv: descriptions used to classify the mechanism (criterion C).
+    # From data/copper_genes_annotation.tsv: protein description, literature references and the NCBI Gene link.
+    references = models.TextField(blank=True)  # ";"-separated PubMed IDs, DOIs or titles
+    bacmet_url = models.CharField(max_length=255, blank=True)  # entry in the BacMet EXP database
     protein_name = models.CharField(max_length=255, blank=True)  # UniProt
     ncbi_description = models.CharField(max_length=255, blank=True)  # NCBI Gene
     ncbi_gene_url = models.CharField(max_length=255, blank=True)
@@ -47,14 +50,9 @@ class Analysis(models.Model):
     query_id = models.CharField(max_length=255)
     sequence = models.TextField()
     length = models.PositiveIntegerField()
-    # Ranking result (see services/scoring.py); category "" marks a result from the old scoring scheme.
-    category = models.CharField(max_length=32, blank=True)
-    score = models.PositiveSmallIntegerField(null=True, blank=True)
-    max_score = models.PositiveSmallIntegerField(null=True, blank=True)  # maximum available for this sequence
-    score_pct = models.FloatField(null=True, blank=True)
-    uncertainty = models.CharField(max_length=16, blank=True)
-    flags = models.JSONField(default=list, blank=True)
-    breakdown = models.JSONField(default=list, blank=True)  # [{key, label, points (None = skipped), max, note}]
+    # Score and tier of the top-ranked hit (services/ranking.py); tier "" marks a result from an older scheme.
+    tier = models.CharField(max_length=16, blank=True)
+    total_score = models.FloatField(null=True, blank=True)
     conclusion = models.TextField(blank=True)
 
     class Meta:
@@ -64,14 +62,6 @@ class Analysis(models.Model):
     def unit(self):
         return "nt" if self.seq_type == "nucleotide" else "aa"
 
-    @property
-    def level(self):
-        return {"High potential": "strong", "Moderate": "possible"}.get(self.category, "weak")
-
-    @property
-    def points(self):
-        return {row["key"]: row["points"] for row in self.breakdown}
-
 
 class Hit(models.Model):
     analysis = models.ForeignKey(Analysis, on_delete=models.CASCADE, related_name="hits")
@@ -79,6 +69,7 @@ class Hit(models.Model):
     bacmet_id = models.CharField(max_length=32)
     gene_name = models.CharField(max_length=128)
     organism = models.CharField(max_length=255, blank=True)
+    compounds = models.TextField(blank=True)  # BacMet metal/compound list of the reference gene
     identity = models.FloatField()
     align_length = models.PositiveIntegerField()
     evalue = models.FloatField()
@@ -86,18 +77,24 @@ class Hit(models.Model):
     query_start = models.PositiveIntegerField(null=True, blank=True)
     query_end = models.PositiveIntegerField(null=True, blank=True)
     ref_coverage = models.FloatField(null=True, blank=True)  # % of the reference gene covered by the alignment
-    passes_gate = models.BooleanField(default=False)
     description = models.CharField(max_length=255, blank=True)
-    family = models.CharField(max_length=32, blank=True)
     ncbi_gene_url = models.CharField(max_length=255, blank=True)
+    bacmet_url = models.CharField(max_length=255, blank=True)  # entry in the BacMet EXP database
+    # 10-point ranking (services/ranking.py); total_score None marks a hit from an older scoring scheme.
+    similarity = models.FloatField(null=True, blank=True)  # identity x ref_coverage / 100
+    score_blast = models.FloatField(null=True, blank=True)
+    score_bacmet = models.FloatField(null=True, blank=True)
+    score_metals = models.FloatField(null=True, blank=True)
+    total_score = models.FloatField(null=True, blank=True)
+    tier = models.CharField(max_length=16, blank=True)
+    n_references = models.PositiveSmallIntegerField(null=True, blank=True)
+    article_links = models.JSONField(default=list, blank=True)
+    notes = models.TextField(blank=True)  # missing data and caps, "; "-separated
 
     class Meta:
         ordering = ["rank"]
 
     @property
-    def query_gene(self):
-        return self.gene_name.split("/")[0].strip()
-
-    @property
-    def bacmet_url(self):
-        return settings.BACMET_GENE_URL.format(gene=quote(self.query_gene))
+    def bacmet_link(self):
+        """The reference gene in the BacMet Experimentally Confirmed database (by gene name if no entry link)."""
+        return self.bacmet_url or settings.BACMET_EXP_URL.format(query=quote(self.gene_name.split("/")[0].strip()))

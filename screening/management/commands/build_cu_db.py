@@ -48,7 +48,8 @@ def read_mapping(path):
 
 
 def read_annotation(path):
-    """UniProt / NCBI Gene annotation per BacMet ID: protein descriptions and the NCBI Gene link."""
+    """Annotation per BacMet ID: UniProt / NCBI Gene descriptions, the NCBI Gene link and, from optional columns,
+    the gene's literature references (";"-separated PubMed IDs, DOIs or titles) and its BacMet EXP page."""
     with open(path, encoding="utf-8-sig", newline="") as fh:
         reader = csv.DictReader(fh, delimiter="\t")
         if "bacmet_id" not in (reader.fieldnames or []):
@@ -58,6 +59,8 @@ def read_annotation(path):
                 "protein_name": (r.get("uniprot_protein_name") or "").strip()[:255],
                 "ncbi_description": (r.get("ncbi_description") or "").strip()[:255],
                 "ncbi_gene_url": (r.get("ncbi_gene_url") or "").strip()[:255],
+                "references": (r.get("references") or "").strip(),
+                "bacmet_url": (r.get("bacmet_url") or "").strip()[:255],
             }
             for r in reader if r["bacmet_id"].strip()
         }
@@ -91,10 +94,11 @@ class Command(BaseCommand):
         unannotated = sorted(set(sequences) - set(annotation))
         if unannotated:
             self.stdout.write(self.style.WARNING(
-                f"No annotation for {len(unannotated)} entries (mechanism criterion skipped): {', '.join(unannotated[:10])}"
+                f"No annotation for {len(unannotated)} entries: {', '.join(unannotated[:10])}"
             ))
+        # Every entry comes from BacMet EXP, the experimentally confirmed dataset.
         genes = [
-            BacMetGene(sequence=sequences[bid], **cu_rows[bid], **annotation.get(bid, {}))
+            BacMetGene(sequence=sequences[bid], dataset="experimental", **cu_rows[bid], **annotation.get(bid, {}))
             for bid in sorted(sequences)
         ]
         out_fasta = settings.DATA_DIR / settings.CU_FASTA_NAME

@@ -8,7 +8,10 @@ from django.shortcuts import get_object_or_404, redirect, render
 from .forms import UploadForm
 from .models import Analysis, Batch, Hit
 from .services.blast import BlastError
-from .services.scoring import CATEGORIES, CRITERIA, DISCLAIMER, gate_checks, ranking_key, screen_many
+from .services.ranking import MAX_POINTS, MAX_SCORE, TIERS, ranking_key
+from .services.scoring import DISCLAIMER, screen_many
+
+OLD_SCHEME = "Old scoring – re-run"
 
 
 def upload(request):
@@ -75,51 +78,49 @@ def _save_analysis(batch, data, record, res):
 
 
 def _batch_rows(batch):
-    """Analyses of a batch with their best hit, ordered by the ranking specification (Step 5)."""
+    """Analyses of a batch with their top-ranked hit, best first (same ranking as the hits of one sequence)."""
     rows = [(a, a.hits.all()[0]) for a in batch.analyses.prefetch_related("hits")]
-    rows.sort(key=lambda r: ranking_key(r[0].category, r[0].score_pct, r[0].uncertainty, r[1].identity))
+    rows.sort(key=lambda r: ranking_key(r[1].total_score, r[1].similarity, r[1].evalue))
     return rows
 
 
 def batch_detail(request, pk):
     batch = get_object_or_404(Batch, pk=pk)
     rows = _batch_rows(batch)
-    categories = [a.category for a, _ in rows]
+    tiers = [a.tier or OLD_SCHEME for a, _ in rows]
     return render(request, "screening/batch.html", {
         "b": batch,
         "rows": rows,
-        "counts": [(c, categories.count(c)) for c in CATEGORIES if c in categories],
+        "counts": [(t, tiers.count(t)) for t in (*TIERS, OLD_SCHEME) if t in tiers],
         "no_hit_count": batch.screened_count - len(rows),
+        "max_points": MAX_POINTS,
+        "max_score": MAX_SCORE,
         "disclaimer": DISCLAIMER,
     })
 
 
-# Report columns of the ranking specification, for the best hit of each sequence.
-REPORT_HEADER = [
-    "Query ID", "Length", "Best hit gene", "BacMet ID", "Description", "Organism",
-    "Identity %", "Reference coverage %", "E-value", "Bitscore",
-    *(f"{k} {label} (/{mx})" for k, (label, mx) in CRITERIA.items()),
-    "Total", "Max available", "%", "Category", "Uncertainty", "Flags", "Evidence reference", "Conclusion",
+# One CSV row per hit: the input columns of the ranking specification, then its score columns.
+HIT_HEADER = [
+    "Rank", "BacMet ID", "Gene", "Description", "Organism", "Compounds",
+    "Identity %", "Reference coverage %", "E-value", "Bitscore", "Similarity (identity x coverage / 100)",
+    f"score_blast (/{MAX_POINTS['blast']})", f"score_bacmet (/{MAX_POINTS['bacmet']})",
+    f"score_metals (/{MAX_POINTS['metals']})", f"total_score (/{MAX_SCORE})", "Tier",
+    "n_references", "article_links", "Notes", "BacMet EXP link",
 ]
 
 
-def _report_row(a, h):
-    points = a.points
+def _hit_row(h):
     return [
-        a.query_id, a.length, h.gene_name, h.bacmet_id, h.description, h.organism,
-        f"{h.identity:.1f}", _pct(h.ref_coverage), f"{h.evalue:.2e}", f"{h.bitscore:.1f}",
-        *(("skipped" if points[k] is None else points[k]) if k in points else "" for k in CRITERIA),
-        _blank(a.score), _blank(a.max_score), _pct(a.score_pct), a.category or "old scoring - re-run",
-        a.uncertainty, "; ".join(a.flags), "not in database", a.conclusion,
+        h.rank, h.bacmet_id, h.gene_name, h.description, h.organism, h.compounds,
+        f"{h.identity:.1f}", _num(h.ref_coverage, ".0f"), f"{h.evalue:.2e}", f"{h.bitscore:.1f}",
+        _num(h.similarity, ".1f"), _num(h.score_blast), _num(h.score_bacmet), _num(h.score_metals),
+        _num(h.total_score), h.tier or OLD_SCHEME, _num(h.n_references), " ; ".join(h.article_links), h.notes,
+        h.bacmet_link,
     ]
 
 
-def _pct(value):
-    return "" if value is None else f"{value:.0f}"
-
-
-def _blank(value):
-    return "" if value is None else value
+def _num(value, fmt="g"):
+    return "" if value is None else format(value, fmt)
 
 
 def _csv_response(name):
@@ -141,48 +142,35 @@ def batch_csv(request, pk):
     w.writerow(["With Cu hits", len(rows)])
     w.writerow(["Disclaimer", DISCLAIMER])
     w.writerow([])
-    w.writerow(REPORT_HEADER)
-    for a, h in rows:
-        w.writerow(_report_row(a, h))
+    w.writerow(["Rank", "Query ID", "Length", *HIT_HEADER[1:]])  # hit columns describe the top-ranked hit
+    for rank, (a, h) in enumerate(rows, 1):
+        w.writerow([rank, a.query_id, a.length, *_hit_row(h)[1:]])
     return resp
 
 
 def result(request, pk):
     analysis = get_object_or_404(Analysis, pk=pk)
     hits = list(analysis.hits.all())
-    top = hits[0] if hits else None
-    gate = (gate_checks(top.evalue, top.bitscore, top.ref_coverage)
-            if top and top.ref_coverage is not None else [])
     return render(request, "screening/result.html", {
-        "a": analysis, "hits": hits, "top": top, "gate": gate, "disclaimer": DISCLAIMER,
+        "a": analysis, "hits": hits, "top": hits[0] if hits else None,
+        "max_points": MAX_POINTS, "max_score": MAX_SCORE, "disclaimer": DISCLAIMER,
     })
 
 
 def result_csv(request, pk):
     a = get_object_or_404(Analysis, pk=pk)
-    hits = list(a.hits.all())
     resp, w = _csv_response(f"curemediate_analysis_{a.pk}.csv")
     w.writerow(["File", a.filename])
+    w.writerow(["Query ID", a.query_id])
     w.writerow(["Sequence type", a.get_seq_type_display()])
     w.writerow(["Date", a.created_at.strftime("%Y-%m-%d %H:%M")])
-    w.writerow(["Category", a.category or "old scoring - re-run"])
+    w.writerow(["Tier", a.tier or OLD_SCHEME])
     w.writerow(["Conclusion", a.conclusion])
     w.writerow(["Disclaimer", DISCLAIMER])
     w.writerow([])
-    if hits:
-        w.writerow(REPORT_HEADER)
-        w.writerow(_report_row(a, hits[0]))
-        w.writerow([])
-    w.writerow([
-        "Rank", "Gene", "BacMet ID", "Description", "Family", "Organism", "Identity %", "Align length",
-        "Reference coverage %", "Query start", "Query end", "E-value", "Bitscore", "Passes gate",
-    ])
-    for h in hits:
-        w.writerow([
-            h.rank, h.gene_name, h.bacmet_id, h.description, h.family, h.organism, f"{h.identity:.2f}",
-            h.align_length, _pct(h.ref_coverage), h.query_start, h.query_end,
-            f"{h.evalue:.2e}", f"{h.bitscore:.1f}", "yes" if h.passes_gate else "no",
-        ])
+    w.writerow(HIT_HEADER)
+    for h in a.hits.all():
+        w.writerow(_hit_row(h))
     return resp
 
 
@@ -190,4 +178,5 @@ def history(request):
     return render(request, "screening/history.html", {
         "batches": Batch.objects.all(),
         "analyses": Analysis.objects.filter(batch__isnull=True),
+        "max_score": MAX_SCORE,
     })
